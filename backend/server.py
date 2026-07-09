@@ -537,6 +537,20 @@ async def update_installation(installation_id: str, payload: InstallationUpdate,
     return out
 
 
+@api_router.delete("/installations/{installation_id}")
+async def delete_installation(installation_id: str, user: dict = Depends(get_current_user)):
+    inst = await db.installations.find_one({"id": installation_id}, {"_id": 0})
+    if not inst:
+        raise HTTPException(404, "Installation introuvable")
+    allowed = user["role"] == "super_admin" or inst.get("owner_id") == user["id"] or inst.get("created_by") == user["id"]
+    if not allowed:
+        raise HTTPException(403, "Suppression non autorisée")
+    for col in ("system", "zones", "devices", "schedule", "memberships", "invitations", "pairing"):
+        await db[col].delete_many({"installation_id": installation_id})
+    await db.installations.delete_one({"id": installation_id})
+    return {"ok": True}
+
+
 # ----------------------------- Invitations -----------------------------
 @api_router.post("/installations/{installation_id}/invite")
 async def create_invite(installation_id: str, payload: InviteCreate,
@@ -803,7 +817,9 @@ async def associate_pairing(iid: str, pid: str, payload: AssociatePairing, user:
 
     await db.pairing.update_one({"id": pid}, {"$set": {"status": "associated"}})
     zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
-    return {"device": {**device.model_dump(), "product_id": None}, "zones": [Zone(**z).model_dump() for z in zones]}
+    dev = device.model_dump()
+    dev.pop("product_id", None)
+    return {"device": dev, "zones": [Zone(**z).model_dump() for z in zones]}
 
 
 @api_router.delete("/installations/{iid}/pairing/{pid}")

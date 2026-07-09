@@ -167,28 +167,47 @@ export default function Home() {
             </p>
           )}
           {(installations || []).map((inst, i) => (
-            <motion.button
+            <motion.div
               key={inst.id}
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              data-testid={`installation-card-${inst.id}`}
-              onClick={() => navigate(`/installations/${inst.id}`)}
-              className="text-left border border-border/60 bg-[#121212] rounded-lg p-6 hover:border-zinc-500 transition-colors duration-200 group"
+              className="relative"
             >
-              <div className="flex items-start justify-between">
-                <div className="w-11 h-11 rounded-md bg-heat/15 border border-heat/30 flex items-center justify-center">
-                  <House weight="duotone" size={24} className="text-heat" />
+              {user.role === "super_admin" && (
+                <button
+                  data-testid={`delete-installation-${inst.id}`}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!window.confirm(`Supprimer l'installation « ${inst.name} » ?`)) return;
+                    try { await api.deleteInstallation(inst.id); toast.success("Installation supprimée"); load(); }
+                    catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail)); }
+                  }}
+                  className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full border border-border/70 bg-black/60 flex items-center justify-center text-zinc-500 hover:text-offline hover:border-offline/50 transition-colors duration-200"
+                  title="Supprimer"
+                >
+                  <Trash size={15} />
+                </button>
+              )}
+              <button
+                data-testid={`installation-card-${inst.id}`}
+                onClick={() => navigate(`/installations/${inst.id}`)}
+                className="w-full text-left border border-border/60 bg-[#121212] rounded-lg p-6 hover:border-zinc-500 transition-colors duration-200 group"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="w-11 h-11 rounded-md bg-heat/15 border border-heat/30 flex items-center justify-center">
+                    <House weight="duotone" size={24} className="text-heat" />
+                  </div>
+                  <ArrowRight size={18} className="text-zinc-600 group-hover:text-white transition-colors duration-200" />
                 </div>
-                <ArrowRight size={18} className="text-zinc-600 group-hover:text-white transition-colors duration-200" />
-              </div>
-              <h3 className="font-display text-xl font-bold tracking-tight mt-4">{inst.name}</h3>
-              <div className="flex flex-col gap-1 mt-3 text-xs text-zinc-500">
-                <span className="flex items-center gap-1.5"><Crown size={13} className="text-amber-400" /> {inst.owner_name || "Sans propriétaire"}</span>
-                <span className="flex items-center gap-1.5"><Wrench size={13} className="text-cool" /> {inst.installer_name || "—"}</span>
-              </div>
-              <span className="inline-block mt-4 text-[10px] px-2 py-0.5 rounded-full" style={{ background: inst.can_write ? "rgba(16,185,129,0.12)" : "rgba(161,161,170,0.12)", color: inst.can_write ? "#10B981" : "#A1A1AA" }}>
-                {inst.can_write ? "Contrôle actif" : "Lecture seule"}
-              </span>
-            </motion.button>
+                <h3 className="font-display text-xl font-bold tracking-tight mt-4">{inst.name}</h3>
+                <div className="flex flex-col gap-1 mt-3 text-xs text-zinc-500">
+                  <span className="flex items-center gap-1.5"><Crown size={13} className="text-amber-400" /> {inst.owner_name || "Sans propriétaire"}</span>
+                  <span className="flex items-center gap-1.5"><Wrench size={13} className="text-cool" /> {inst.installer_name || "—"}</span>
+                </div>
+                <span className="inline-block mt-4 text-[10px] px-2 py-0.5 rounded-full" style={{ background: inst.can_write ? "rgba(16,185,129,0.12)" : "rgba(161,161,170,0.12)", color: inst.can_write ? "#10B981" : "#A1A1AA" }}>
+                  {inst.can_write ? "Contrôle actif" : "Lecture seule"}
+                </span>
+              </button>
+            </motion.div>
           ))}
         </div>
       )}

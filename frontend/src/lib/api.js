@@ -42,6 +42,7 @@ export const api = {
   createInstallation: (payload) => http.post("/installations", payload).then((r) => r.data),
   getInstallation: (id) => http.get(`/installations/${id}`).then((r) => r.data),
   updateInstallation: (id, data) => http.put(`/installations/${id}`, data).then((r) => r.data),
+  deleteInstallation: (id) => http.delete(`/installations/${id}`).then((r) => r.data),
   // invitations / members
   invite: (id, role, email) => http.post(`/installations/${id}/invite`, { role, email }).then((r) => r.data),
   listInvites: (id) => http.get(`/installations/${id}/invitations`).then((r) => r.data),

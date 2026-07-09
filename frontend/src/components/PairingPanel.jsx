@@ -4,12 +4,9 @@ import { QRCodeSVG } from "qrcode.react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api, { formatApiErrorDetail } from "../lib/api";
-import { zoneIcons } from "../lib/icons";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-
-const ICON_OPTIONS = Object.keys(zoneIcons);
 
 export const PairingPanel = ({ iid, zones, onAssociated }) => {
   const [discovered, setDiscovered] = useState([]);
