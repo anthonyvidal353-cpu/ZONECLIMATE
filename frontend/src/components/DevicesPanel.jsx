@@ -16,15 +16,17 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
           <p className="overline text-zinc-500">SmartLife · Synchronisation</p>
           <h2 className="font-display text-2xl font-bold tracking-tight mt-1">Appareils détectés</h2>
         </div>
-        <Button
-          data-testid="sync-devices-btn"
-          onClick={onSync}
-          disabled={syncing || !canWrite}
-          className="rounded-full bg-white text-black hover:bg-zinc-200 font-semibold disabled:opacity-40"
-        >
-          <ArrowsClockwise weight="bold" size={16} className={syncing ? "animate-spin mr-2" : "mr-2"} />
-          {syncing ? "Synchronisation…" : "Synchroniser"}
-        </Button>
+        {canWrite && (
+          <Button
+            data-testid="sync-devices-btn"
+            onClick={onSync}
+            disabled={syncing}
+            className="rounded-full bg-white text-black hover:bg-zinc-200 font-semibold disabled:opacity-40"
+          >
+            <ArrowsClockwise weight="bold" size={16} className={syncing ? "animate-spin mr-2" : "mr-2"} />
+            {syncing ? "Synchronisation…" : "Synchroniser"}
+          </Button>
+        )}
       </div>
 
       <div className="divide-y divide-border/40">

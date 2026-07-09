@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Ticket, House, Crown, Wrench, ArrowRight, Users, Trash, ShieldCheck } from "@phosphor-icons/react";
+import { Plus, Ticket, House, Crown, Wrench, ArrowRight, Users, Trash, ShieldCheck, Spinner } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
 import api, { formatApiErrorDetail } from "../lib/api";
 import { useAuth, ROLE_LABELS } from "../context/AuthContext";
@@ -78,7 +78,7 @@ function UsersManager() {
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [installations, setInstallations] = useState([]);
+  const [installations, setInstallations] = useState(null);
   const [tab, setTab] = useState("installations");
   const [newName, setNewName] = useState("");
   const [code, setCode] = useState("");
@@ -181,12 +181,17 @@ export default function Home() {
 
       {(!isAdminView || tab === "installations") && (
         <div data-testid="installations-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {installations.length === 0 && (
+          {installations === null && (
+            <div className="col-span-full flex items-center gap-3 text-zinc-500 py-10">
+              <Spinner size={20} className="animate-spin text-heat" /> Chargement des installations…
+            </div>
+          )}
+          {installations !== null && installations.length === 0 && (
             <p className="text-zinc-500 text-sm col-span-full py-10">
               Aucune installation pour l'instant. {canCreate ? "Créez-en une." : "Rejoignez-en une avec un code d'invitation."}
             </p>
           )}
-          {installations.map((inst, i) => (
+          {(installations || []).map((inst, i) => (
             <motion.button
               key={inst.id}
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
