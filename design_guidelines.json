@@ -1,0 +1,115 @@
+{
+  "theme_strategy": {
+    "theme": "dark",
+    "rationale": "HVAC control dashboards benefit from high contrast and a premium 'Command Center' feel. Dark mode with strict color coding (Orange/Red for heating, Blue for cooling) maximizes readability and prevents visual fatigue for users checking statuses frequently.",
+    "archetype": "The Performance Pro mixed with Grid Borders Technical look"
+  },
+  "typography": {
+    "headings_font": "Cabinet Grotesk",
+    "body_font": "IBM Plex Sans",
+    "rules": [
+      "BANNED: Inter, Roboto, Space Grotesk, Open Sans.",
+      "Headings (Size > 32px) MUST use tight letter spacing (tracking-tight or tracking-tighter).",
+      "Overlines / Labels MUST be Uppercase, tiny, and have wide spacing (tracking-[0.2em]).",
+      "DO NOT use text larger than text-6xl for maximum size."
+    ],
+    "installation": "Add fonts via Google Fonts in index.html or import directly in CSS."
+  },
+  "colors": {
+    "background": "#0A0A0A",
+    "surface": "#121212",
+    "border": "#27272A",
+    "text_primary": "#FAFAFA",
+    "text_secondary": "#A1A1AA",
+    "functional": {
+      "heating": "#FF5722",
+      "cooling": "#3B82F6",
+      "idle": "#52525B",
+      "power_on": "#10B981",
+      "power_off": "#EF4444"
+    },
+    "forbidden_colors": [
+      "#1B93A4",
+      "#7351B7"
+    ],
+    "rules": [
+      "Never use pure #000000 or #808080. Tint greys slightly (e.g. zinc or slate from Tailwind).",
+      "DO NOT use complete transparent background in header, overlays, or surfaces that have content under them. Use solid #121212 or high-opacity backdrop blur (e.g. bg-black/80 backdrop-blur-xl).",
+      "Hover states must explicitly set text color.",
+      "Do NOT use dark colors as gradients. Use solid colors with 1px border highlights for depth."
+    ]
+  },
+  "grid_and_layout": {
+    "surface_strategy": "Grid Borders (The Technical Look). Expose the skeleton with border-collapse and border-border/40. No soft shadows. Use sharp edges or max 8px radius.",
+    "spacing_scale": "p-1, p-2, p-4, p-6, p-8, p-12",
+    "rules": [
+      "High Density Grid for Zone Dashboard: grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 with gap-4 or gap-6.",
+      "Containers with borders must have internal padding (p-6) to prevent text collision.",
+      "Mobile-First: Always start with grid-cols-1."
+    ]
+  },
+  "components_and_features": {
+    "master_thermostat": "Position as a prominent sticky header or top hero widget. Must include Mode toggle (Chaud / Froid) and Global System Power (Allumer / Eteindre).",
+    "zone_dashboard": "Grid of modular tiles. Each tile represents a zone (e.g., Salon, Chambre 1). Must show current temperature prominently, target setpoint, and damper state (Registre: Ouvert/Fermé).",
+    "temperature_control": "Use +/- buttons (up/down). DO NOT use sliders for precision control. Stepping by 0.5 degrees is ideal.",
+    "hourly_scheduling": "Use Tabs for Days, and an Accordion or custom list for time slots (Plages horaires).",
+    "device_list": "Synced list from SmartLife (mocked). Use Scroll Area and Switch to toggle active devices.",
+    "shadcn_overrides": [
+      "Tabs: Override fixed h-9 to h-auto.",
+      "Card: Remove drop-shadows, use flat bg with 1px borders.",
+      "Switch: Customize colors to match the Heating/Cooling states."
+    ]
+  },
+  "motion_and_interactions": {
+    "rules": [
+      "Use specific transitions (e.g., transition: transform 0.2s ease, opacity 0.2s ease), NOT transition: all.",
+      "Add hover states (background shift, border color shift) and active states (scale-95) to all interactive elements.",
+      "Respect prefers-reduced-motion."
+    ]
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "installation": "yarn add @phosphor-icons/react",
+    "usage": "Use Phosphor icons with Duotone or Regular weights for a technical look."
+  },
+  "language_and_content": {
+    "locale": "Français uniquement (French Only)",
+    "dictionary_examples": {
+      "heating": "Chaud",
+      "cooling": "Froid",
+      "power_on": "Allumé",
+      "power_off": "Éteint",
+      "setpoint": "Consigne",
+      "current_temp": "Température actuelle",
+      "damper": "Registre / Volet",
+      "open": "Ouvert",
+      "closed": "Fermé",
+      "schedule": "Plages horaires",
+      "devices": "Appareils",
+      "master_thermostat": "Thermostat Maître"
+    },
+    "data": "Use mock/simulated data first."
+  },
+  "accessibility": {
+    "rules": [
+      "All interactive and key informational elements MUST include a data-testid attribute (e.g., data-testid='zone-1-temp-up').",
+      "Focus states must have HIGHER contrast than default.",
+      "Use aria-hidden='true' for purely decorative elements."
+    ]
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms. Always add transitions for specific interactive elements excluding transforms.",
+    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file. This disrupts the human natural reading flow of text.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Prioritize using pre-existing components from src/components/ui when applicable. The project uses .js/.jsx extensions. Share guidelines and write files strictly keeping this in mind.",
+    "Use sonner for toasts. Sonner component is located in /app/frontend/src/components/ui/sonner.jsx.",
+    "No authentication. Mock/simulated data first. All text MUST be in French."
+  ]
+}
