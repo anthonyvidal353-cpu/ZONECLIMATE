@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 7 validates the pairing UX bug fix: 'Associer à ZoneClimate' button + pre-selected default zone. Backend pytest: 50/50 pass (auth, RBAC, installations, pairing/masking, invitations, members). Frontend E2E on a fresh installation (TEST_iter7_pair, installer role): scan-devices-btn visible, POST /discover returns 3 devices, thermostats have zone pre-selected to 'Salon' (first zone), associate button label is exactly 'Associer à ZoneClimate', one-click associate WITHOUT touching the zone selector succeeds (POST /pairing/{pid}/associate → 200) and row disappears. New-zone name flow, gainable flow (no zone selector), and ignore (DELETE /pairing/{pid}) all work. DevicesPanel shows 5 associated devices with CZ- ref QR codes. No product_id ever exposed (verified in iteration 6, unchanged).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Home header (installer)", "issues": ["Header user badge slightly overlaps the 'Connexion réussie' toast on 1440px viewport — cosmetic, non-blocking"]},
+      {"screen": "Dialogs", "issues": ["Radix DialogContent still missing aria-describedby on wizard/QR dialogs (warning in console) — carried over from iteration 6"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Optional: add DialogDescription (aria-describedby) to Dialog components",
+    "Optional: expose DELETE /api/installations/{id} + a UI action to clean up accumulated TEST_* installations (7 present under installateur@demo.fr)"
+  ],
+  "critical_code_review_comments": [
+    "PairingPanel.defaultsFor() uses `zones[0]?.id` as default — good UX but silently overwrites user selection whenever `zones` changes (deps of load callback include zones). Consider guarding to only set when choice[p.id] is undefined; current spread `{...defaultsFor(list), ...prev}` protects existing selections so behavior is safe.",
+    "associate_pairing response includes `product_id: null` at top-level device object — safer to strip the key entirely for API consistency (noted iter 6, still present).",
+    "PairingPanel imports ICON_OPTIONS/zoneIcons but never renders an icon picker for new zones — dead code (also noted iter 6).",
+    "backend_test.py is now ~540 lines; splitting into test_auth/test_pairing/test_installations would improve maintainability."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (50/50)", "frontend": "100% (installer 1-click associate, new-zone associate, gainable associate, ignore, guest read-only all verified)"},
+  "test_credentials": "admin@climazone.fr/Admin1234!, moderateur@climazone.fr/Demo1234!, installateur@demo.fr/Demo1234!, client@demo.fr/Demo1234!, invite@demo.fr/Demo1234!",
+  "seed_data_creation": "Created TEST_iter7_pair installation under installateur@demo.fr with 2 zones (Salon master, Chambre) + 3 pairing associations (thermostat to Salon, thermostat to new 'TEST_NewZone_iter7' zone, gainable). One pairing was ignored. Demo installation 'Maison Client Démo' + 5 demo accounts intact.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug fix confirmed: PairingPanel now (a) shows scan-devices-btn prominently, (b) pre-selects first zone for each thermostat, (c) button clearly labelled 'Associer à ZoneClimate' with data-testid=pairing-associate-{uuid}. One-click flow from scan → associate works. Backend endpoints /discover, /pairing/{pid}/associate (zone_id|new_zone_name|as_gainable), DELETE /pairing/{pid} all return 200 for installer/client and 403 for guest. IMPORTANT: use data-testid=tab-devices (not role=tab) to switch tabs. Pairing row testid is 'pairing-{uuid-with-dashes}' — filter with regex /^pairing-[0-9a-f-]{36}$/ to distinguish from child pairing-zone-/pairing-newzone-/pairing-associate-/pairing-ignore- selectors.",
+  "verified_features": [
+    "scan-devices-btn visible for installer on Appareils tab",
+    "POST /installations/{iid}/discover returns thermostats + gainable with ref_code, no product_id",
+    "For each thermostat, pairing-zone-{id} is pre-populated with the first zone name (Salon)",
+    "pairing-associate-{id} button exists per row with exact text 'Associer à ZoneClimate' (heat color, prefix pairing-associate-)",
+    "1-click associate on a thermostat with pre-selected zone: POST /associate → 200, row removed, device visible in DevicesPanel with CZ- QR",
+    "Typing in pairing-newzone-{id} then clicking associate creates the zone and links device",
+    "Gainable pairing: no zone selector, associate button links to master zone (POST → 200)",
+    "DELETE /pairing/{pid} removes ignored row",
+    "Backend RBAC: guest → 403 on discover/associate/ignore (pytest)",
+    "product_id never present in any /pairing or /devices response"
+  ],
+  "rca of the issue": "Original bug: user reported no obvious 'Associate' button, and clicking without a zone selection silently failed. Fix landed in PairingPanel.jsx: (1) defaultsFor() pre-populates choice[pid].zone_id = zones[0].id for every non-gainable pairing at scan/load time, (2) button renamed 'Associer à ZoneClimate' with heat color, (3) each row now has clear data-testid=pairing-associate-{id}. Verified end-to-end: user can click Associer directly after scan without touching any control."
+}

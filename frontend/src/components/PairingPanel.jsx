@@ -14,9 +14,20 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
   const [busyId, setBusyId] = useState(null);
   const [choice, setChoice] = useState({}); // pid -> { zone_id, new_zone_name }
 
+  const defaultsFor = (list) => {
+    const c = {};
+    const firstZone = zones[0]?.id || "";
+    list.forEach((p) => {
+      if (p.category !== "gainable") c[p.id] = { zone_id: firstZone, new_zone_name: "" };
+    });
+    return c;
+  };
+
   const load = useCallback(async () => {
-    setDiscovered(await api.listPairing(iid).catch(() => []));
-  }, [iid]);
+    const list = await api.listPairing(iid).catch(() => []);
+    setDiscovered(list);
+    setChoice((prev) => ({ ...defaultsFor(list), ...prev }));
+  }, [iid, zones]);
   useEffect(() => { load(); }, [load]);
 
   const scan = async () => {
@@ -25,8 +36,9 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
     try {
       const found = await api.discover(iid);
       setDiscovered(found);
+      setChoice((prev) => ({ ...defaultsFor(found), ...prev }));
       if (found.length === 0) toast("Aucun appareil en mode appairage détecté");
-      else toast.success(`${found.length} appareil(s) découvert(s)`);
+      else toast.success(`${found.length} appareil(s) découvert(s) — cliquez « Associer »`);
     } finally { setScanning(false); }
   };
 
@@ -121,9 +133,10 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
                   <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-center">
                     {!isGainable && (
                       <>
+                        <span className="text-xs text-zinc-500 shrink-0">Zone :</span>
                         <Select value={c.zone_id || ""} onValueChange={(v) => setC(p.id, { zone_id: v, new_zone_name: "" })}>
-                          <SelectTrigger data-testid={`pairing-zone-${p.id}`} className="w-full sm:w-[200px] h-9 bg-black/40 border-border/70 rounded-full text-xs">
-                            <SelectValue placeholder="Associer à une zone…" />
+                          <SelectTrigger data-testid={`pairing-zone-${p.id}`} className="w-full sm:w-[180px] h-9 bg-black/40 border-border/70 rounded-full text-xs">
+                            <SelectValue placeholder="Choisir une zone…" />
                           </SelectTrigger>
                           <SelectContent>
                             {zones.map((z) => (<SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>))}
@@ -135,7 +148,7 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
                           value={c.new_zone_name || ""}
                           onChange={(e) => setC(p.id, { new_zone_name: e.target.value, zone_id: "" })}
                           placeholder="Nouvelle zone…"
-                          className="h-9 bg-black/40 border-border/70 w-full sm:w-[160px]"
+                          className="h-9 bg-black/40 border-border/70 w-full sm:w-[150px]"
                         />
                       </>
                     )}
@@ -144,10 +157,10 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
                       data-testid={`pairing-associate-${p.id}`}
                       onClick={() => associate(p)}
                       disabled={busyId === p.id}
-                      className="rounded-full bg-white text-black hover:bg-zinc-200 font-semibold h-9 disabled:opacity-50"
+                      className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold h-9 disabled:opacity-50 sm:ml-auto shrink-0"
                     >
-                      {busyId === p.id ? <CircleNotch size={14} className="animate-spin mr-1" /> : <Plus weight="bold" size={14} className="mr-1" />}
-                      Associer
+                      {busyId === p.id ? <CircleNotch size={15} className="animate-spin mr-1.5" /> : <Plus weight="bold" size={15} className="mr-1.5" />}
+                      Associer à ZoneClimate
                     </Button>
                   </div>
                 </motion.div>
