@@ -7,6 +7,7 @@ import { AppShell } from "../components/AppShell";
 import { MasterZoneCard } from "../components/MasterZoneCard";
 import { ZoneCard } from "../components/ZoneCard";
 import { DevicesPanel } from "../components/DevicesPanel";
+import { PairingPanel } from "../components/PairingPanel";
 import { SchedulePanel } from "../components/SchedulePanel";
 import { MembersPanel } from "../components/MembersPanel";
 
@@ -198,7 +199,21 @@ export default function InstallationDashboard() {
         </div>
       )}
 
-      {tab === "devices" && <DevicesPanel devices={devices} onSync={syncDevices} syncing={syncing} canWrite={canWrite} />}
+      {tab === "devices" && (
+        <div className="space-y-6">
+          {canWrite && (
+            <PairingPanel
+              iid={iid}
+              zones={zones}
+              onAssociated={async (zs) => {
+                setZones(zs);
+                setDevices(await api.getDevices(iid));
+              }}
+            />
+          )}
+          <DevicesPanel devices={devices} onSync={syncDevices} syncing={syncing} canWrite={canWrite} />
+        </div>
+      )}
       {tab === "schedule" && <SchedulePanel zones={zones} slots={slots} onCreate={createSlot} onDelete={deleteSlot} canWrite={canWrite} />}
       {tab === "members" && <MembersPanel installation={installation} onUpdated={setInstallation} />}
     </AppShell>

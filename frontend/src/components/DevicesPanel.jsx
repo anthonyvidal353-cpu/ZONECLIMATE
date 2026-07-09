@@ -1,6 +1,9 @@
-import { WifiHigh, WifiSlash, BatteryMedium, BatteryFull, BatteryLow, Wind, Thermometer, ArrowsClockwise } from "@phosphor-icons/react";
+import { useState } from "react";
+import { WifiHigh, WifiSlash, BatteryMedium, BatteryFull, BatteryLow, Wind, Thermometer, ArrowsClockwise, QrCode } from "@phosphor-icons/react";
+import { QRCodeSVG } from "qrcode.react";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 
 const BatteryIcon = ({ level }) => {
   if (level >= 70) return <BatteryFull weight="duotone" size={16} className="text-online" />;
@@ -9,11 +12,13 @@ const BatteryIcon = ({ level }) => {
 };
 
 export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
+  const [qrDevice, setQrDevice] = useState(null);
+
   return (
     <div className="border border-border/60 bg-[#121212] rounded-lg">
       <div className="flex items-center justify-between p-6 border-b border-border/50">
         <div>
-          <p className="overline text-zinc-500">SmartLife · Synchronisation</p>
+          <p className="overline text-zinc-500">Équipement · Synchronisation</p>
           <h2 className="font-display text-2xl font-bold tracking-tight mt-1">Appareils détectés</h2>
         </div>
         {canWrite && (
@@ -40,12 +45,21 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
             className="flex items-center justify-between p-4 md:px-6 hover:bg-white/[0.02] transition-colors duration-200"
           >
             <div className="flex items-center gap-3">
+              {/* QR code de l'appareil */}
+              <button
+                data-testid={`device-qr-${d.id}`}
+                onClick={() => setQrDevice(d)}
+                className="w-11 h-11 rounded-md bg-white p-1 flex items-center justify-center hover:ring-2 hover:ring-heat/60 transition-all duration-200"
+                title="Afficher le QR code"
+              >
+                {d.ref_code ? <QRCodeSVG value={`CLIMAZONE:${d.ref_code}`} size={36} /> : <QrCode size={24} className="text-black" />}
+              </button>
               <div className="w-9 h-9 rounded-md border border-border/60 flex items-center justify-center text-zinc-300">
                 {d.category === "gainable" ? <Wind weight="duotone" size={18} /> : <Thermometer weight="duotone" size={18} />}
               </div>
               <div>
                 <p className="font-medium text-sm">{d.name}</p>
-                <p className="text-xs text-zinc-500 font-mono-num">{d.product_id}</p>
+                <p className="text-xs text-zinc-500 font-mono-num">Réf. {d.ref_code}</p>
               </div>
             </div>
 
@@ -72,6 +86,22 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
           </motion.div>
         ))}
       </div>
+
+      <Dialog open={!!qrDevice} onOpenChange={(o) => !o && setQrDevice(null)}>
+        <DialogContent className="bg-[#121212] border-border/70 max-w-xs" data-testid="qr-dialog">
+          <DialogHeader><DialogTitle className="font-display tracking-tight">{qrDevice?.name}</DialogTitle></DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="bg-white p-4 rounded-lg">
+              {qrDevice?.ref_code && <QRCodeSVG value={`CLIMAZONE:${qrDevice.ref_code}`} size={200} />}
+            </div>
+            <div className="text-center">
+              <p className="overline text-zinc-500">Référence appareil</p>
+              <p className="font-mono-num text-xl font-bold tracking-widest text-heat">{qrDevice?.ref_code}</p>
+            </div>
+            <p className="text-xs text-zinc-500 text-center">Collez ce QR code sur l'appareil pour le retrouver et l'associer rapidement.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

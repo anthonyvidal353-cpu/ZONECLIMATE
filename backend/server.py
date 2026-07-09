@@ -39,6 +39,16 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+def gen_ref() -> str:
+    # Référence publique associée au QR code (masque le fournisseur)
+    return "CZ-" + uuid.uuid4().hex[:8].upper()
+
+
+def gen_product_id(category: str) -> str:
+    prefix = "SL-DUCT" if category == "gainable" else "SL-THERMO"
+    return f"{prefix}-{random.randint(1000, 9999)}"
+
+
 # ----------------------------- Auth utils -----------------------------
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -141,7 +151,8 @@ class Device(BaseModel):
     installation_id: str
     name: str
     category: str
-    product_id: str
+    product_id: str               # interne (fournisseur) - non exposé aux utilisateurs
+    ref_code: Optional[str] = None  # référence publique associée au QR code
     online: bool = True
     battery: Optional[int] = None
     signal: int = 100
@@ -193,7 +204,8 @@ class ScheduleSlotCreate(BaseModel):
 
 class DeviceSpec(BaseModel):
     name: str
-    product_id: str
+    product_id: Optional[str] = None   # interne, auto-généré si absent
+    ref_code: Optional[str] = None      # référence QR (générée si absente)
 
 
 class ZoneSpec(BaseModel):
@@ -227,6 +239,26 @@ class RoleUpdate(BaseModel):
     role: str
 
 
+class Pairing(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    installation_id: str
+    category: str                 # gainable | thermostat
+    suggested_name: str
+    product_id: str               # ID Tuya interne (résolu par ClimaZone)
+    ref_code: str
+    battery: Optional[int] = None
+    signal: int = 90
+    status: str = "discovered"
+    discovered_at: str = Field(default_factory=now_iso)
+
+
+class AssociatePairing(BaseModel):
+    zone_id: Optional[str] = None
+    new_zone_name: Optional[str] = None
+    new_zone_icon: str = "house"
+    as_gainable: bool = False
+
+
 # ----------------------------- Seeding -----------------------------
 ZONES_DEF = [
     ("Salon", "couch", 22.5, 22.0),
@@ -246,7 +278,7 @@ async def seed_installation_equipment(installation_id: str, gainable=None, zones
     zones, devices = [], []
 
     if zones_spec:
-        # Configuration fournie : association gainable + thermostats SmartLife
+        # Configuration fournie : association gainable + thermostats via QR/référence
         if not any(z.master for z in zones_spec):
             zones_spec[0].master = True
         master_seen = False
@@ -257,14 +289,18 @@ async def seed_installation_equipment(installation_id: str, gainable=None, zones
             z = Zone(installation_id=installation_id, name=zs.name, icon=zs.icon,
                      current_temp=21.0, setpoint=21.0, order=i, is_master=master)
             therm = Device(installation_id=installation_id, name=zs.thermostat.name,
-                           category="thermostat", product_id=zs.thermostat.product_id,
+                           category="thermostat",
+                           product_id=zs.thermostat.product_id or gen_product_id("thermostat"),
+                           ref_code=zs.thermostat.ref_code or gen_ref(),
                            battery=random.randint(60, 100), signal=random.randint(70, 99),
                            zone_id=z.id)
             z.device_id = therm.id
             devices.append(therm)
             if master and gainable:
                 devices.append(Device(installation_id=installation_id, name=gainable.name,
-                                      category="gainable", product_id=gainable.product_id,
+                                      category="gainable",
+                                      product_id=gainable.product_id or gen_product_id("gainable"),
+                                      ref_code=gainable.ref_code or gen_ref(),
                                       signal=98, zone_id=z.id))
             zones.append(z.model_dump())
     else:
@@ -273,15 +309,15 @@ async def seed_installation_equipment(installation_id: str, gainable=None, zones
             z = Zone(installation_id=installation_id, name=name, icon=icon,
                      current_temp=cur, setpoint=sp, order=i, is_master=master)
             therm = Device(installation_id=installation_id, name=f"Thermostat {name}",
-                           category="thermostat", product_id=f"SL-THERMO-{1000+i}",
+                           category="thermostat", product_id=f"SL-THERMO-{1000+i}", ref_code=gen_ref(),
                            battery=random.randint(60, 100), signal=random.randint(70, 99),
                            zone_id=z.id)
             z.device_id = therm.id
             devices.append(therm)
             if master:
                 devices.append(Device(installation_id=installation_id, name="Gainable Principal",
-                                      category="gainable", product_id="SL-DUCT-9920", signal=98,
-                                      zone_id=z.id))
+                                      category="gainable", product_id="SL-DUCT-9920", ref_code=gen_ref(),
+                                      signal=98, zone_id=z.id))
             zones.append(z.model_dump())
 
     await db.zones.insert_many(zones)
@@ -657,11 +693,22 @@ async def set_master(iid: str, zone_id: str, user: dict = Depends(get_current_us
 
 
 # ----------------------------- Devices -----------------------------
+async def public_devices(iid: str):
+    docs = await db.devices.find({"installation_id": iid}, {"_id": 0}).to_list(200)
+    out = []
+    for d in docs:
+        if not d.get("ref_code"):
+            d["ref_code"] = gen_ref()
+            await db.devices.update_one({"id": d["id"]}, {"$set": {"ref_code": d["ref_code"]}})
+        d.pop("product_id", None)  # ne jamais exposer l'ID fournisseur
+        out.append(d)
+    return out
+
+
 @api_router.get("/installations/{iid}/devices")
 async def list_devices(iid: str, user: dict = Depends(get_current_user)):
     await get_installation_for(user, iid)
-    docs = await db.devices.find({"installation_id": iid}, {"_id": 0}).to_list(200)
-    return [Device(**d) for d in docs]
+    return await public_devices(iid)
 
 
 @api_router.post("/installations/{iid}/devices/sync")
@@ -673,8 +720,99 @@ async def sync_devices(iid: str, user: dict = Depends(get_current_user)):
         if d.get("category") == "thermostat":
             upd["battery"] = max(5, (d.get("battery") or 100) - random.randint(0, 2))
         await db.devices.update_one({"id": d["id"]}, {"$set": upd})
-    docs = await db.devices.find({"installation_id": iid}, {"_id": 0}).to_list(200)
-    return [Device(**d) for d in docs]
+    return await public_devices(iid)
+
+
+# ----------------------------- Pairing / Découverte (interroge Tuya) -----------------------------
+def public_pairing(p: dict) -> dict:
+    p = dict(p)
+    p.pop("_id", None)
+    p.pop("product_id", None)  # l'ID fournisseur reste interne
+    return p
+
+
+NEW_THERMO_NAMES = ["Chambre amis", "Dressing", "Buanderie", "Entrée", "Mezzanine", "Véranda", "Garage", "Cellier"]
+
+
+@api_router.post("/installations/{iid}/discover")
+async def discover_devices(iid: str, user: dict = Depends(get_current_user)):
+    # ClimaZone interroge Tuya pour découvrir les appareils en mode appairage (simulé)
+    await get_installation_for(user, iid, write=True)
+    pending = await db.pairing.count_documents({"installation_id": iid, "status": "discovered"})
+    if pending == 0:
+        has_gainable = await db.devices.find_one({"installation_id": iid, "category": "gainable"})
+        n = random.randint(1, 3)
+        for _ in range(n):
+            is_gainable = (not has_gainable) and random.random() < 0.4
+            cat = "gainable" if is_gainable else "thermostat"
+            p = Pairing(
+                installation_id=iid, category=cat,
+                suggested_name=("Gainable" if cat == "gainable" else f"Thermostat {random.choice(NEW_THERMO_NAMES)}"),
+                product_id=gen_product_id(cat), ref_code=gen_ref(),
+                battery=(random.randint(70, 100) if cat == "thermostat" else None),
+                signal=random.randint(70, 99),
+            )
+            await db.pairing.insert_one(p.model_dump())
+            if is_gainable:
+                has_gainable = True
+    docs = await db.pairing.find({"installation_id": iid, "status": "discovered"}).to_list(50)
+    return [public_pairing(d) for d in docs]
+
+
+@api_router.get("/installations/{iid}/pairing")
+async def list_pairing(iid: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid)
+    docs = await db.pairing.find({"installation_id": iid, "status": "discovered"}).to_list(50)
+    return [public_pairing(d) for d in docs]
+
+
+@api_router.post("/installations/{iid}/pairing/{pid}/associate")
+async def associate_pairing(iid: str, pid: str, payload: AssociatePairing, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
+    p = await db.pairing.find_one({"installation_id": iid, "id": pid, "status": "discovered"})
+    if not p:
+        raise HTTPException(404, "Appareil en appairage introuvable")
+
+    device = Device(installation_id=iid, name=p["suggested_name"], category=p["category"],
+                    product_id=p["product_id"], ref_code=p["ref_code"],
+                    battery=p.get("battery"), signal=p.get("signal", 90))
+
+    if p["category"] == "gainable" or payload.as_gainable:
+        master = await db.zones.find_one({"installation_id": iid, "is_master": True})
+        device.category = "gainable"
+        device.zone_id = master["id"] if master else None
+        await db.devices.insert_one(device.model_dump())
+    else:
+        if payload.new_zone_name:
+            last = await db.zones.find({"installation_id": iid}).sort("order", -1).to_list(1)
+            order = (last[0]["order"] + 1) if last else 0
+            zone = Zone(installation_id=iid, name=payload.new_zone_name, icon=payload.new_zone_icon, order=order)
+            device.zone_id = zone.id
+            zone.device_id = device.id
+            await db.zones.insert_one(zone.model_dump())
+            await db.devices.insert_one(device.model_dump())
+        elif payload.zone_id:
+            zone = await db.zones.find_one({"installation_id": iid, "id": payload.zone_id})
+            if not zone:
+                raise HTTPException(404, "Zone introuvable")
+            device.zone_id = payload.zone_id
+            await db.devices.insert_one(device.model_dump())
+            await db.zones.update_one({"id": payload.zone_id}, {"$set": {"device_id": device.id}})
+        else:
+            raise HTTPException(400, "Choisissez une zone ou créez-en une")
+
+    await db.pairing.update_one({"id": pid}, {"$set": {"status": "associated"}})
+    zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
+    return {"device": {**device.model_dump(), "product_id": None}, "zones": [Zone(**z).model_dump() for z in zones]}
+
+
+@api_router.delete("/installations/{iid}/pairing/{pid}")
+async def ignore_pairing(iid: str, pid: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
+    res = await db.pairing.delete_one({"installation_id": iid, "id": pid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Introuvable")
+    return {"ok": True}
 
 
 # ----------------------------- Simulation -----------------------------

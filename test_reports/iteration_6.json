@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 6 covered vendor-ID masking (product_id never leaves the API), QR/ref_code (CZ-*) exposure, and the new discover/pair/associate/ignore flow. Backend: 50/50 pytest pass (new TestPairingAndMasking + updated create-with-config). UI: installer end-to-end pairing flow works (scan finds thermostats, associate to new zone creates zone, ignore removes row, QR dialog opens with CZ- reference). Guest is correctly locked read-only on Devices tab (no scan/sync buttons) but sees QR codes. No 'SmartLife' text anywhere in the UI. Runtime verification confirms /devices and /pairing responses contain no product_id field.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dialogs", "issues": ["React a11y warning: DialogContent (qr-dialog, others) missing Description/aria-describedby — non-blocking but should be addressed for accessibility"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Optional: add DialogDescription (aria-describedby) to DialogContent components (qr-dialog, create-installation dialog) to silence Radix a11y warning",
+    "Optional: expose a DELETE /api/installations/{id} endpoint — the DB now accumulates many TEST_* installations from previous iterations (no cleanup path)"
+  ],
+  "critical_code_review_comments": [
+    "server.public_devices() lazily backfills ref_code when missing — good defensive coding, but the write happens on every GET for legacy rows without ref_code; ideally do a one-shot migration at startup.",
+    "associate_pairing returns {'device': {..., 'product_id': None}} — safer to strip the key entirely (as done for the list endpoints) for API consistency.",
+    "Pairing model persists product_id in DB, but discovery/associate never verify it against a real vendor catalog — fine for the mock, but worth noting the mapping is one-way and unauthenticated on Tuya side.",
+    "PairingPanel imports ICON_OPTIONS and zoneIcons but the icon selector for new zones is never rendered — dead code / unfinished UI (new zone icon defaults to 'house' silently).",
+    "CreateInstallationDialog still imports ICON_OPTIONS/zoneIcons (used) but the phosphor 'Cube' import removed — clean.",
+    "Backend test file has ~530 lines and mixes many concerns; consider splitting into multiple files (test_auth.py, test_pairing.py, test_installations.py) for maintainability."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (50/50)", "frontend": "100% (installer pairing + guest read-only verified end-to-end)"},
+  "test_credentials": "admin@climazone.fr/Admin1234!, moderateur@climazone.fr/Demo1234!, installateur@demo.fr/Demo1234!, client@demo.fr/Demo1234!, invite@demo.fr/Demo1234!",
+  "seed_data_creation": "Created TEST_Pairing_Install (backend) + TEST_UI_Pairing (UI) installations under installateur@demo.fr; both contain associated devices with new 'Zone Nouvelle UI'. Demo installation 'Maison Client Démo' + 5 demo users intact.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "New selectors validated: scan-devices-btn, pairing-{uuid}, pairing-zone-{uuid}, pairing-newzone-{uuid}, pairing-associate-{uuid}, pairing-ignore-{uuid}, device-qr-{id}, qr-dialog, auto-associate-btn. IMPORTANT: pairing IDs are full UUIDs containing dashes, so testid filtering must use prefix matching (pairing-ignore-, pairing-zone-, etc.), NOT a naive dash-count. product_id must be stripped in every response consumed by frontend — verified for /devices, /pairing, and associate returns {device:{...,product_id:null}} which the UI already ignores.",
+  "verified_features": [
+    "GET /installations/{iid}/devices returns ref_code (CZ-*), never product_id",
+    "POST /installations/{iid}/discover returns pairing entries with ref_code, no product_id, categories in {gainable, thermostat}",
+    "GET /installations/{iid}/pairing masks product_id",
+    "POST /pairing/{pid}/associate creates a new zone when new_zone_name is provided and links device.zone_id to it",
+    "POST /pairing/{pid}/associate with zone_id links to existing zone and removes pairing from discovered list",
+    "DELETE /pairing/{pid} removes discovered pairing (ignore flow)",
+    "Guest role: 403 on POST /discover, POST /pairing/{pid}/associate, DELETE /pairing/{pid}",
+    "Installer + client: 200 on POST /discover",
+    "UI: installer sees PairingPanel + can scan/associate/ignore; each device shows a clickable QR (device-qr-{id}) opening qr-dialog with CZ- ref",
+    "UI: guest sees QR codes on devices but NO PairingPanel and NO sync button (read-only)",
+    "UI: no 'SmartLife' string anywhere in login, home, dashboard, devices tab, or wizard",
+    "Wizard 'Générer les références (QR)' auto-associate-btn fills CZ- refs; installation creation succeeds and navigates to detail page"
+  ]
+}

@@ -10,13 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 const ICON_OPTIONS = Object.keys(zoneIcons);
-const rand = () => Math.floor(1000 + Math.random() * 9000);
-const newThermoId = () => `SL-THERMO-${rand()}`;
-const newDuctId = () => `SL-DUCT-${rand()}`;
+const newRef = () => "CZ-" + Math.random().toString(16).slice(2, 10).toUpperCase();
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function emptyZone(master = false, icon = "house", name = "") {
-  return { key: uid(), name, icon, master, product_id: "" };
+  return { key: uid(), name, icon, master, ref_code: "" };
 }
 
 export const CreateInstallationDialog = ({ onCreated }) => {
@@ -24,14 +22,14 @@ export const CreateInstallationDialog = ({ onCreated }) => {
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [gainableName, setGainableName] = useState("Gainable Principal");
-  const [gainableId, setGainableId] = useState("");
+  const [gainableRef, setGainableRef] = useState("");
   const [zones, setZones] = useState([
     emptyZone(true, "couch", "Salon"),
     emptyZone(false, "bed", "Chambre"),
   ]);
 
   const reset = () => {
-    setName(""); setGainableName("Gainable Principal"); setGainableId("");
+    setName(""); setGainableName("Gainable Principal"); setGainableRef("");
     setZones([emptyZone(true, "couch", "Salon"), emptyZone(false, "bed", "Chambre")]);
   };
 
@@ -41,9 +39,9 @@ export const CreateInstallationDialog = ({ onCreated }) => {
   const setMaster = (key) => setZones((zs) => zs.map((z) => ({ ...z, master: z.key === key })));
 
   const autoAssociate = () => {
-    setGainableId(newDuctId());
-    setZones((zs) => zs.map((z) => ({ ...z, product_id: newThermoId() })));
-    toast.success("Appareils SmartLife associés (simulé)");
+    setGainableRef(newRef());
+    setZones((zs) => zs.map((z) => ({ ...z, ref_code: newRef() })));
+    toast.success("Références (QR) générées");
   };
 
   const submit = async () => {
@@ -54,18 +52,18 @@ export const CreateInstallationDialog = ({ onCreated }) => {
 
     const payload = {
       name: name.trim(),
-      gainable: { name: gainableName.trim() || "Gainable Principal", product_id: gainableId.trim() || newDuctId() },
+      gainable: { name: gainableName.trim() || "Gainable Principal", ref_code: gainableRef.trim() || newRef() },
       zones: cleanZones.map((z) => ({
         name: z.name.trim(),
         icon: z.icon,
         master: z.master,
-        thermostat: { name: `Thermostat ${z.name.trim()}`, product_id: z.product_id.trim() || newThermoId() },
+        thermostat: { name: `Thermostat ${z.name.trim()}`, ref_code: z.ref_code.trim() || newRef() },
       })),
     };
     setBusy(true);
     try {
       const inst = await api.createInstallation(payload);
-      toast.success("Installation créée avec l'association SmartLife");
+      toast.success("Installation créée");
       setOpen(false); reset();
       onCreated?.(inst);
     } catch (e) {
@@ -85,7 +83,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
       <DialogContent className="bg-[#121212] border-border/70 max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display tracking-tight text-2xl">Créer une installation</DialogTitle>
-          <p className="text-sm text-zinc-500">Associez le gainable et les thermostats SmartLife, zone par zone.</p>
+          <p className="text-sm text-zinc-500">Définissez les zones. Chaque appareil sera appairé et un QR code (référence) lui sera associé.</p>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
@@ -96,7 +94,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
 
           <div className="flex justify-end">
             <button data-testid="auto-associate-btn" onClick={autoAssociate} className="inline-flex items-center gap-1.5 text-xs font-semibold text-heat hover:underline">
-              <WifiHigh weight="bold" size={14} /> Associer les appareils SmartLife (simulé)
+              <WifiHigh weight="bold" size={14} /> Générer les références (QR)
             </button>
           </div>
 
@@ -112,8 +110,8 @@ export const CreateInstallationDialog = ({ onCreated }) => {
                 <Input data-testid="gainable-name-input" value={gainableName} onChange={(e) => setGainableName(e.target.value)} className="mt-1 bg-black/40 border-border/70" />
               </div>
               <div>
-                <Label className="text-xs text-zinc-500">ID produit SmartLife</Label>
-                <Input data-testid="gainable-id-input" value={gainableId} onChange={(e) => setGainableId(e.target.value)} placeholder="SL-DUCT-XXXX" className="mt-1 bg-black/40 border-border/70 font-mono-num" />
+                <Label className="text-xs text-zinc-500">Référence QR (optionnel)</Label>
+                <Input data-testid="gainable-id-input" value={gainableRef} onChange={(e) => setGainableRef(e.target.value)} placeholder="CZ-XXXXXXXX" className="mt-1 bg-black/40 border-border/70 font-mono-num" />
               </div>
             </div>
           </div>
@@ -152,8 +150,8 @@ export const CreateInstallationDialog = ({ onCreated }) => {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 items-end mt-3">
                     <div>
-                      <Label className="text-xs text-zinc-500">ID thermostat SmartLife</Label>
-                      <Input data-testid={`zone-thermo-${i}`} value={z.product_id} onChange={(e) => setZone(z.key, { product_id: e.target.value })} placeholder="SL-THERMO-XXXX" className="mt-1 bg-black/40 border-border/70 font-mono-num" />
+                      <Label className="text-xs text-zinc-500">Référence QR (optionnel)</Label>
+                      <Input data-testid={`zone-thermo-${i}`} value={z.ref_code} onChange={(e) => setZone(z.key, { ref_code: e.target.value })} placeholder="CZ-XXXXXXXX" className="mt-1 bg-black/40 border-border/70 font-mono-num" />
                     </div>
                     <button
                       data-testid={`zone-master-${i}`}

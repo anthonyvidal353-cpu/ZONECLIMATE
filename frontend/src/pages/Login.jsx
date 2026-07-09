@@ -56,12 +56,12 @@ export default function Login() {
           <span className="font-display font-extrabold tracking-tighter text-xl">ClimaZone</span>
         </div>
         <div className="relative">
-          <p className="overline text-zinc-500 mb-4">Pilotage Gainable · SmartLife</p>
+          <p className="overline text-zinc-500 mb-4">Pilotage Gainable Connecté</p>
           <h1 className="font-display text-5xl font-extrabold tracking-tighter leading-[1.05]">
             Votre installation,<br />zone par zone.
           </h1>
           <p className="text-zinc-400 mt-5 max-w-md">
-            Centralisez votre gainable et vos thermostats SmartLife. Un thermostat maître
+            Centralisez votre gainable et vos thermostats connectés. Un thermostat maître
             pilote le mode chaud/froid, chaque zone garde sa consigne.
           </p>
         </div>

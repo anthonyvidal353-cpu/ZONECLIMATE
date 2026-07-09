@@ -27,7 +27,7 @@ export const AppShell = ({ children, right }) => {
             </div>
             <div className="text-left">
               <p className="font-display font-extrabold tracking-tighter text-lg leading-none">ClimaZone</p>
-              <p className="text-[10px] text-zinc-500 tracking-wider">GAINABLE · SMARTLIFE</p>
+              <p className="text-[10px] text-zinc-500 tracking-wider">GAINABLE CONNECTÉ</p>
             </div>
           </button>
 

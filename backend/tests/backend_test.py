@@ -264,14 +264,14 @@ class TestInstallationCreateWithConfig:
     def _payload(self, name):
         return {
             "name": name,
-            "gainable": {"name": "Gainable Test", "product_id": "SL-DUCT-TEST01"},
+            "gainable": {"name": "Gainable Test", "ref_code": "CZ-DUCTTS01"},
             "zones": [
                 {"name": "Salon TEST", "icon": "couch", "master": True,
-                 "thermostat": {"name": "Thermostat Salon TEST", "product_id": "SL-THERMO-T001"}},
+                 "thermostat": {"name": "Thermostat Salon TEST", "ref_code": "CZ-THERT001"}},
                 {"name": "Bureau TEST", "icon": "desktop", "master": False,
-                 "thermostat": {"name": "Thermostat Bureau TEST", "product_id": "SL-THERMO-T002"}},
+                 "thermostat": {"name": "Thermostat Bureau TEST", "ref_code": "CZ-THERT002"}},
                 {"name": "Chambre TEST", "icon": "bed", "master": False,
-                 "thermostat": {"name": "Thermostat Chambre TEST", "product_id": "SL-THERMO-T003"}},
+                 "thermostat": {"name": "Thermostat Chambre TEST", "ref_code": "CZ-THERT003"}},
             ],
         }
 
@@ -286,14 +286,16 @@ class TestInstallationCreateWithConfig:
         masters = [z for z in zones if z["is_master"]]
         assert len(masters) == 1 and masters[0]["name"] == "Salon TEST"
         devices = sess["installer"].get(f"{API}/installations/{iid}/devices").json()
+        for d in devices:
+            assert "product_id" not in d, "product_id must be hidden"
         gainables = [d for d in devices if d["category"] == "gainable"]
         thermos = [d for d in devices if d["category"] == "thermostat"]
         assert len(gainables) == 1
-        assert gainables[0]["product_id"] == "SL-DUCT-TEST01"
+        assert gainables[0]["ref_code"] == "CZ-DUCTTS01"
         assert gainables[0]["zone_id"] == masters[0]["id"]
         assert len(thermos) == 3
-        pids = {d["product_id"] for d in thermos}
-        assert {"SL-THERMO-T001", "SL-THERMO-T002", "SL-THERMO-T003"} == pids
+        refs = {d["ref_code"] for d in thermos}
+        assert {"CZ-THERT001", "CZ-THERT002", "CZ-THERT003"} == refs
 
     def test_moderator_can_create_and_write(self, sess):
         r = sess["moderator"].post(f"{API}/installations", json=self._payload("TEST_Moderator_Config"))
@@ -399,6 +401,128 @@ class TestMembers:
         relations = [x["relation"] for x in m]
         assert any(rel.startswith("Propriétaire") for rel in relations)
         assert any(rel.startswith("Installateur") for rel in relations)
+
+# ---------- NEW: Pairing / Discovery + product_id masking ----------
+class TestPairingAndMasking:
+    @pytest.fixture(scope="class")
+    def fresh_iid(self, sess):
+        r = sess["installer"].post(f"{API}/installations", json={
+            "name": "TEST_Pairing_Install",
+            "gainable": {"name": "Gainable Test"},
+            "zones": [
+                {"name": "Salon P", "icon": "couch", "master": True,
+                 "thermostat": {"name": "Thermo Salon P"}},
+            ],
+        })
+        assert r.status_code == 200
+        return r.json()["id"]
+
+    def test_devices_no_product_id(self, sess, demo_installation_id):
+        r = sess["client"].get(f"{API}/installations/{demo_installation_id}/devices")
+        assert r.status_code == 200
+        ds = r.json()
+        assert len(ds) > 0
+        for d in ds:
+            assert "product_id" not in d, f"product_id leaked: {d}"
+            assert d.get("ref_code", "").startswith("CZ-"), f"bad ref_code: {d.get('ref_code')}"
+
+    def test_devices_no_product_id_fresh(self, sess, fresh_iid):
+        ds = sess["installer"].get(f"{API}/installations/{fresh_iid}/devices").json()
+        for d in ds:
+            assert "product_id" not in d
+            assert d["ref_code"].startswith("CZ-")
+
+    def test_discover_no_product_id(self, sess, fresh_iid):
+        r = sess["installer"].post(f"{API}/installations/{fresh_iid}/discover")
+        assert r.status_code == 200
+        found = r.json()
+        assert len(found) >= 1
+        for p in found:
+            assert "product_id" not in p, f"product_id leaked in pairing: {p}"
+            assert p["ref_code"].startswith("CZ-")
+            assert p["category"] in ("gainable", "thermostat")
+
+    def test_list_pairing_no_product_id(self, sess, fresh_iid):
+        # discover has already happened in prior test; ensure list returns same masking
+        r = sess["installer"].get(f"{API}/installations/{fresh_iid}/pairing")
+        assert r.status_code == 200
+        for p in r.json():
+            assert "product_id" not in p
+
+    def test_guest_discover_forbidden(self, sess, demo_installation_id):
+        r = sess["guest"].post(f"{API}/installations/{demo_installation_id}/discover")
+        assert r.status_code == 403
+
+    def test_guest_associate_forbidden(self, sess, demo_installation_id):
+        # Even with fake pid, guest must be blocked at write check
+        r = sess["guest"].post(f"{API}/installations/{demo_installation_id}/pairing/fake-pid/associate",
+                               json={"zone_id": "x"})
+        assert r.status_code == 403
+
+    def test_guest_ignore_forbidden(self, sess, demo_installation_id):
+        r = sess["guest"].delete(f"{API}/installations/{demo_installation_id}/pairing/fake-pid")
+        assert r.status_code == 403
+
+    def test_installer_discover_ok(self, sess, demo_installation_id):
+        r = sess["installer"].post(f"{API}/installations/{demo_installation_id}/discover")
+        assert r.status_code == 200
+
+    def test_client_discover_ok(self, sess, demo_installation_id):
+        r = sess["client"].post(f"{API}/installations/{demo_installation_id}/discover")
+        assert r.status_code == 200
+
+    def test_associate_thermostat_to_new_zone(self, sess, fresh_iid):
+        # Trigger discover, then find a thermostat and associate to a NEW zone
+        sess["installer"].post(f"{API}/installations/{fresh_iid}/discover")
+        pending = sess["installer"].get(f"{API}/installations/{fresh_iid}/pairing").json()
+        thermo = next((p for p in pending if p["category"] == "thermostat"), None)
+        if not thermo:
+            # force a new discover cycle
+            sess["installer"].post(f"{API}/installations/{fresh_iid}/discover")
+            pending = sess["installer"].get(f"{API}/installations/{fresh_iid}/pairing").json()
+            thermo = next((p for p in pending if p["category"] == "thermostat"), None)
+        if not thermo:
+            pytest.skip("No thermostat discovered")
+        zones_before = sess["installer"].get(f"{API}/installations/{fresh_iid}/zones").json()
+        r = sess["installer"].post(f"{API}/installations/{fresh_iid}/pairing/{thermo['id']}/associate",
+                                   json={"new_zone_name": "Nouveau salon TEST", "new_zone_icon": "house"})
+        assert r.status_code == 200, r.text
+        # returned device must NOT expose product_id (either missing or null)
+        assert r.json()["device"].get("product_id") in (None, "")
+        zones_after = sess["installer"].get(f"{API}/installations/{fresh_iid}/zones").json()
+        assert len(zones_after) == len(zones_before) + 1
+        assert any(z["name"] == "Nouveau salon TEST" for z in zones_after)
+        # device list updated, still no product_id
+        ds = sess["installer"].get(f"{API}/installations/{fresh_iid}/devices").json()
+        for d in ds:
+            assert "product_id" not in d
+
+    def test_associate_to_existing_zone(self, sess, fresh_iid):
+        sess["installer"].post(f"{API}/installations/{fresh_iid}/discover")
+        pending = sess["installer"].get(f"{API}/installations/{fresh_iid}/pairing").json()
+        thermo = next((p for p in pending if p["category"] == "thermostat"), None)
+        if not thermo:
+            pytest.skip("No thermostat discovered")
+        zones = sess["installer"].get(f"{API}/installations/{fresh_iid}/zones").json()
+        target_zone = zones[0]
+        r = sess["installer"].post(f"{API}/installations/{fresh_iid}/pairing/{thermo['id']}/associate",
+                                   json={"zone_id": target_zone["id"]})
+        assert r.status_code == 200
+        # pairing must be gone from discovered list
+        remaining = sess["installer"].get(f"{API}/installations/{fresh_iid}/pairing").json()
+        assert all(p["id"] != thermo["id"] for p in remaining)
+
+    def test_ignore_pairing(self, sess, fresh_iid):
+        sess["installer"].post(f"{API}/installations/{fresh_iid}/discover")
+        pending = sess["installer"].get(f"{API}/installations/{fresh_iid}/pairing").json()
+        if not pending:
+            pytest.skip("Nothing to ignore")
+        pid = pending[0]["id"]
+        r = sess["installer"].delete(f"{API}/installations/{fresh_iid}/pairing/{pid}")
+        assert r.status_code == 200
+        remaining = sess["installer"].get(f"{API}/installations/{fresh_iid}/pairing").json()
+        assert all(p["id"] != pid for p in remaining)
+
 
     def test_toggle_installer_access(self, sess, demo_installation_id):
         # owner (client) toggles
