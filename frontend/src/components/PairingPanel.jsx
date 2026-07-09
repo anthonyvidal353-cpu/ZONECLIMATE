@@ -21,7 +21,7 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
 
   const scan = async () => {
     setScanning(true);
-    toast.message("ClimaZone interroge le cloud pour les appareils en appairage…");
+    toast.message("ZoneClimate interroge le cloud pour les appareils en appairage…");
     try {
       const found = await api.discover(iid);
       setDiscovered(found);
@@ -97,7 +97,7 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-md bg-white p-1 flex items-center justify-center shrink-0">
-                      <QRCodeSVG value={`CLIMAZONE:${p.ref_code}`} size={32} />
+                      <QRCodeSVG value={`ZONECLIMATE:${p.ref_code}`} size={32} />
                     </div>
                     <div className="w-9 h-9 rounded-md border border-border/60 flex items-center justify-center text-zinc-200">
                       {isGainable ? <Wind weight="duotone" size={18} /> : <Thermometer weight="duotone" size={18} />}

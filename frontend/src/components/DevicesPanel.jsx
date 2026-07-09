@@ -52,7 +52,7 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
                 className="w-11 h-11 rounded-md bg-white p-1 flex items-center justify-center hover:ring-2 hover:ring-heat/60 transition-all duration-200"
                 title="Afficher le QR code"
               >
-                {d.ref_code ? <QRCodeSVG value={`CLIMAZONE:${d.ref_code}`} size={36} /> : <QrCode size={24} className="text-black" />}
+                {d.ref_code ? <QRCodeSVG value={`ZONECLIMATE:${d.ref_code}`} size={36} /> : <QrCode size={24} className="text-black" />}
               </button>
               <div className="w-9 h-9 rounded-md border border-border/60 flex items-center justify-center text-zinc-300">
                 {d.category === "gainable" ? <Wind weight="duotone" size={18} /> : <Thermometer weight="duotone" size={18} />}
@@ -92,7 +92,7 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
           <DialogHeader><DialogTitle className="font-display tracking-tight">{qrDevice?.name}</DialogTitle></DialogHeader>
           <div className="flex flex-col items-center gap-4 py-4">
             <div className="bg-white p-4 rounded-lg">
-              {qrDevice?.ref_code && <QRCodeSVG value={`CLIMAZONE:${qrDevice.ref_code}`} size={200} />}
+              {qrDevice?.ref_code && <QRCodeSVG value={`ZONECLIMATE:${qrDevice.ref_code}`} size={200} />}
             </div>
             <div className="text-center">
               <p className="overline text-zinc-500">Référence appareil</p>

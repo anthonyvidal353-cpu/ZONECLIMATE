@@ -26,7 +26,7 @@ db = client[os.environ['DB_NAME']]
 JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALGORITHM = "HS256"
 
-app = FastAPI(title="ClimaZone")
+app = FastAPI(title="ZoneClimate")
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO)
@@ -887,7 +887,7 @@ async def delete_slot(iid: str, slot_id: str, user: dict = Depends(get_current_u
 
 @api_router.get("/")
 async def root():
-    return {"message": "ClimaZone API"}
+    return {"message": "ZoneClimate API"}
 
 
 app.include_router(api_router)

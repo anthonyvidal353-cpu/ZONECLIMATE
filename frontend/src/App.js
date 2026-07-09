@@ -12,7 +12,7 @@ function Splash() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex items-center gap-3 text-zinc-400">
         <Thermometer size={22} className="animate-pulse text-heat" />
-        <span className="font-display">ClimaZone…</span>
+        <span className="font-display">ZoneClimate…</span>
       </div>
     </div>
   );

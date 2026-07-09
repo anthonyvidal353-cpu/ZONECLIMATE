@@ -53,7 +53,7 @@ export default function Login() {
           <div className="w-10 h-10 rounded-md bg-heat/15 border border-heat/30 flex items-center justify-center">
             <Thermometer weight="fill" size={22} className="text-heat" />
           </div>
-          <span className="font-display font-extrabold tracking-tighter text-xl">ClimaZone</span>
+          <span className="font-display font-extrabold tracking-tighter text-xl">ZoneClimate</span>
         </div>
         <div className="relative">
           <p className="overline text-zinc-500 mb-4">Pilotage Gainable Connecté</p>
@@ -90,7 +90,7 @@ export default function Login() {
             {mode === "login" ? "Connexion" : "Créer un compte"}
           </h2>
           <p className="text-sm text-zinc-500 mt-1">
-            {mode === "login" ? "Accédez à votre espace ClimaZone." : "Rejoignez ClimaZone en tant qu'installateur ou client."}
+            {mode === "login" ? "Accédez à votre espace ZoneClimate." : "Rejoignez ZoneClimate en tant qu'installateur ou client."}
           </p>
 
           <form onSubmit={submit} className="mt-8 space-y-4">
