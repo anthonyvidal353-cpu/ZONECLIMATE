@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash, Wind, Thermometer, Crown, WifiHigh, Cube } from "@phosphor-icons/react";
+import { Plus, Trash, Wind, Thermometer, Crown, WifiHigh } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import api, { formatApiErrorDetail } from "../lib/api";
 import { zoneIcons } from "../lib/icons";
