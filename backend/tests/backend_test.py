@@ -2,8 +2,12 @@
 import os
 import pytest
 import requests
+from pathlib import Path
+from dotenv import load_dotenv
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://zone-climate-hub.preview.emergentagent.com').rstrip('/')
+load_dotenv(Path(__file__).resolve().parents[2] / "frontend" / ".env")
+
+BASE_URL = os.environ['REACT_APP_BACKEND_URL'].rstrip('/')
 API = f"{BASE_URL}/api"
 
 
@@ -40,6 +44,37 @@ class TestSystem:
         r = client.put(f"{API}/system", json={"mode": "cool"})
         assert r.status_code == 400
 
+    def test_system_has_fault_codes(self, client):
+        r = client.get(f"{API}/system")
+        assert r.status_code == 200
+        d = r.json()
+        assert "fault_codes" in d and isinstance(d["fault_codes"], list)
+
+
+class TestMasterPower:
+    def test_master_power_off_then_on(self, client):
+        r = client.post(f"{API}/system/master-power", params={"on": False})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["system"]["power"] is False
+        assert all(z["active"] is False for z in d["zones"])
+        r = client.post(f"{API}/system/master-power", params={"on": True})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["system"]["power"] is True
+        assert all(z["active"] is True for z in d["zones"])
+
+
+class TestDiagnostic:
+    def test_run_diagnostic(self, client):
+        r = client.post(f"{API}/system/diagnostic")
+        assert r.status_code == 200
+        d = r.json()
+        assert "fault_codes" in d
+        assert 0 <= len(d["fault_codes"]) <= 2
+        for f in d["fault_codes"]:
+            assert set(("code", "label", "severity")).issubset(f.keys())
+
 
 # ---------- Zones ----------
 class TestZones:
@@ -51,8 +86,22 @@ class TestZones:
         orders = [z["order"] for z in zs]
         assert orders == sorted(orders)
         for z in zs:
-            for k in ("id", "name", "current_temp", "setpoint", "active"):
+            for k in ("id", "name", "current_temp", "setpoint", "active", "is_master"):
                 assert k in z
+        masters = [z for z in zs if z["is_master"]]
+        assert len(masters) == 1
+        assert masters[0]["name"] == "Salon"
+
+    def test_rename_zone(self, client):
+        zs = client.get(f"{API}/zones").json()
+        z = zs[-1]
+        orig = z["name"]
+        new_name = f"TEST_{orig}"
+        r = client.put(f"{API}/zones/{z['id']}", json={"name": new_name})
+        assert r.status_code == 200
+        assert r.json()["name"] == new_name
+        # revert
+        client.put(f"{API}/zones/{z['id']}", json={"name": orig})
 
     def test_update_zone(self, client):
         zs = client.get(f"{API}/zones").json()

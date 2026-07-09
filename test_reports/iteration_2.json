@@ -1,0 +1,20 @@
+{
+  "summary": "Iteration 2: validated master-zone-card refactor + fault codes feature. Backend: 16/16 pytest tests pass, added coverage for fault_codes in /api/system, /api/system/master-power (off/on cascades to zones), /api/system/diagnostic (0-2 faults), zone rename via PUT /api/zones/{id}, and unique is_master zone (Salon). Frontend: Playwright end-to-end verified master card rendering with GAINABLE badge, master rename flow, mode chaud/froid toggle, all fan speeds (auto/bas/moyen/haut), master setpoint +/-, diagnostic button updates fault-codes section, master-shutdown-btn toggles system + label text, non-master zones support rename/setpoint/toggle, Appareils and Planning tabs load. All flows integrated with backend.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend startup/shutdown decorators still deprecated; migrate to FastAPI lifespan (non-blocking).",
+    "PUT /api/zones accepts is_master toggle but does not enforce single-master invariant — could result in 0 or multiple masters if abused (currently no UI path exercises this, so low risk).",
+    "master-power endpoint uses query param (?on=true) instead of JSON body; functional but inconsistent with other PUT/POST endpoints.",
+    "System seed inserts one initial fault_code (EE) which persists until diagnostic replaces it — acceptable for mock demo."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "N/A - no auth",
+  "seed_data_creation": "Backend auto-seeds 1 system doc (with EE fault), 6 zones (Salon is_master=true), 7 devices. One non-master zone was renamed to 'TEST Zone Renamed' during test and not reverted (mock data, non-blocking).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite covers all new endpoints (master-power, diagnostic, is_master invariant, zone rename). Frontend polls /api/simulate/tick every 4s — do not assert exact temp values. One zone was renamed 'TEST Zone Renamed' by playwright and not reverted; main agent may want to reset seed if needed."
+}

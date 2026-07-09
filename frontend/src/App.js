@@ -3,7 +3,7 @@ import "@/App.css";
 import { Toaster, toast } from "sonner";
 import { SquaresFour, ListChecks, CalendarBlank, Thermometer } from "@phosphor-icons/react";
 import api from "@/lib/api";
-import { MasterThermostat } from "@/components/MasterThermostat";
+import { MasterZoneCard } from "@/components/MasterZoneCard";
 import { ZoneCard } from "@/components/ZoneCard";
 import { DevicesPanel } from "@/components/DevicesPanel";
 import { SchedulePanel } from "@/components/SchedulePanel";
@@ -21,6 +21,7 @@ function App() {
   const [slots, setSlots] = useState([]);
   const [tab, setTab] = useState("zones");
   const [syncing, setSyncing] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -56,7 +57,20 @@ function App() {
     const updated = await api.updateSystem(patch);
     setSystem(updated);
     if (patch.mode) toast.success(`Mode ${patch.mode === "chaud" ? "Chaud" : "Froid"} activé`);
-    if (patch.power !== undefined) toast(patch.power ? "Gainable allumé" : "Gainable éteint");
+    if (patch.fan_speed) toast(`Ventilation : ${patch.fan_speed}`);
+  };
+
+  const runDiagnostic = async () => {
+    setDiagnosing(true);
+    try {
+      const updated = await api.runDiagnostic();
+      setSystem(updated);
+      const n = (updated.fault_codes || []).length;
+      if (n === 0) toast.success("Diagnostic terminé : aucun défaut");
+      else toast.warning(`Diagnostic : ${n} défaut(s) détecté(s)`);
+    } finally {
+      setDiagnosing(false);
+    }
   };
 
   const setZoneSetpoint = async (id, setpoint) => {
@@ -68,6 +82,19 @@ function App() {
     const updated = await api.updateZone(zone.id, { active: !zone.active });
     setZones((zs) => zs.map((z) => (z.id === zone.id ? updated : z)));
     toast(updated.active ? `${zone.name} activée` : `${zone.name} désactivée`);
+  };
+
+  const renameZone = async (id, name) => {
+    const updated = await api.updateZone(id, { name });
+    setZones((zs) => zs.map((z) => (z.id === id ? updated : z)));
+    toast.success(`Zone renommée : ${name}`);
+  };
+
+  const masterPower = async (on) => {
+    const { system: sys, zones: zs } = await api.masterPower(on);
+    setSystem(sys);
+    setZones(zs);
+    toast[on ? "success" : "message"](on ? "Système entièrement démarré" : "Système entièrement arrêté");
   };
 
   const syncDevices = async () => {
@@ -108,6 +135,8 @@ function App() {
   const avgTemp = zones.length
     ? (zones.reduce((a, z) => a + z.current_temp, 0) / zones.length).toFixed(1)
     : "—";
+  const masterZone = zones.find((z) => z.is_master);
+  const otherZones = zones.filter((z) => !z.is_master);
 
   return (
     <div className="App min-h-screen bg-background">
@@ -134,13 +163,17 @@ function App() {
               <p className="overline text-zinc-500">Zones actives</p>
               <p className="font-mono-num font-semibold">{activeZones}/{zones.length}</p>
             </div>
+            <div className="text-right">
+              <p className="overline text-zinc-500">Système</p>
+              <p className="font-mono-num font-semibold" style={{ color: system.power ? "#10B981" : "#EF4444" }}>
+                {system.power ? "Actif" : "Arrêté"}
+              </p>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-8">
-        <MasterThermostat system={system} onChange={changeSystem} />
-
         {/* Tabs */}
         <div className="flex gap-1 border border-border/60 bg-[#121212] rounded-full p-1 w-fit">
           {TABS.map((t) => {
@@ -164,21 +197,36 @@ function App() {
         </div>
 
         {tab === "zones" && (
-          <div
-            data-testid="zones-grid"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"
-          >
-            {zones.map((z, i) => (
-              <ZoneCard
-                key={z.id}
-                zone={z}
-                index={i}
-                mode={system.mode}
-                systemOn={system.power}
+          <div className="space-y-6">
+            {masterZone && (
+              <MasterZoneCard
+                zone={masterZone}
+                system={system}
+                onSystem={changeSystem}
+                onMasterPower={masterPower}
                 onSetpoint={setZoneSetpoint}
-                onToggle={toggleZone}
+                onRename={renameZone}
+                onDiagnostic={runDiagnostic}
+                diagnosing={diagnosing}
               />
-            ))}
+            )}
+            <div
+              data-testid="zones-grid"
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"
+            >
+              {otherZones.map((z, i) => (
+                <ZoneCard
+                  key={z.id}
+                  zone={z}
+                  index={i}
+                  mode={system.mode}
+                  systemOn={system.power}
+                  onSetpoint={setZoneSetpoint}
+                  onToggle={toggleZone}
+                  onRename={renameZone}
+                />
+              ))}
+            </div>
           </div>
         )}
 

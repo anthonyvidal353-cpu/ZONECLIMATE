@@ -34,11 +34,18 @@ PyObjectId = Annotated[str, BeforeValidator(lambda v: str(v) if isinstance(v, Ob
 
 
 # ----------------------------- Models -----------------------------
+class FaultCode(BaseModel):
+    code: str
+    label: str
+    severity: str = "warning"      # info | warning | critical
+
+
 class System(BaseModel):
     mode: str = "chaud"            # chaud | froid
     power: bool = True             # gainable allumé / éteint
     master_setpoint: float = 21.0
     fan_speed: str = "auto"        # auto | bas | moyen | haut
+    fault_codes: List[FaultCode] = []
     updated_at: str = Field(default_factory=now_iso)
 
 
@@ -62,6 +69,7 @@ class Zone(BaseModel):
     damper_open: bool = True       # registre ouvert/fermé
     active: bool = True
     device_id: Optional[str] = None
+    is_master: bool = False        # zone hébergeant le gainable (thermostat maître)
     order: int = 0
 
 
@@ -69,6 +77,7 @@ class ZoneUpdate(BaseModel):
     setpoint: Optional[float] = None
     active: Optional[bool] = None
     name: Optional[str] = None
+    is_master: Optional[bool] = None
 
 
 class SystemUpdate(BaseModel):
@@ -100,7 +109,10 @@ class ScheduleSlotCreate(BaseModel):
 # ----------------------------- Seed -----------------------------
 async def seed_data():
     if await db.system.count_documents({}) == 0:
-        await db.system.insert_one(System().model_dump())
+        sys = System(fault_codes=[
+            FaultCode(code="EE", label="Filtre à nettoyer", severity="warning"),
+        ])
+        await db.system.insert_one(sys.model_dump())
 
     if await db.zones.count_documents({}) == 0:
         zones_def = [
@@ -112,15 +124,11 @@ async def seed_data():
             ("Salle de bain", "shower", 23.5, 23.0, "warm"),
         ]
         devices = []
-        # 1 gainable maître
-        gainable = Device(name="Gainable Principal", category="gainable",
-                          product_id="SL-DUCT-9920", online=True, signal=98)
-        devices.append(gainable)
-
         zone_docs = []
         for i, (name, icon, cur, sp, _t) in enumerate(zones_def):
+            master = i == 0  # la 1ère zone héberge le gainable
             z = Zone(name=name, icon=icon, current_temp=cur, setpoint=sp,
-                     damper_open=True, active=True, order=i)
+                     damper_open=True, active=True, order=i, is_master=master)
             # thermostat sans fil par zone
             therm = Device(name=f"Thermostat {name}", category="thermostat",
                            product_id=f"SL-THERMO-{1000+i}", online=True,
@@ -128,6 +136,12 @@ async def seed_data():
                            zone_id=z.id)
             z.device_id = therm.id
             devices.append(therm)
+            if master:
+                # le gainable est installé dans la zone maître
+                gainable = Device(name="Gainable Principal", category="gainable",
+                                  product_id="SL-DUCT-9920", online=True, signal=98,
+                                  zone_id=z.id)
+                devices.append(gainable)
             zone_docs.append(z.model_dump())
 
         await db.zones.insert_many(zone_docs)
@@ -153,6 +167,34 @@ async def update_system(payload: SystemUpdate):
         raise HTTPException(400, "mode invalide")
     updates["updated_at"] = now_iso()
     await db.system.update_one({}, {"$set": updates}, upsert=True)
+    doc = await db.system.find_one({}, {"_id": 0})
+    return System(**doc)
+
+
+@api_router.post("/system/master-power")
+async def master_power(on: bool):
+    # Arrêt/démarrage total : gainable + toutes les zones en un seul geste
+    await db.system.update_one({}, {"$set": {"power": on, "updated_at": now_iso()}}, upsert=True)
+    await db.zones.update_many({}, {"$set": {"active": on}})
+    sys_doc = await db.system.find_one({}, {"_id": 0})
+    zone_docs = await db.zones.find({}, {"_id": 0}).sort("order", 1).to_list(200)
+    return {"system": System(**sys_doc).model_dump(), "zones": [Zone(**z).model_dump() for z in zone_docs]}
+
+
+@api_router.post("/system/diagnostic", response_model=System)
+async def run_diagnostic():
+    # Relance un auto-diagnostic du gainable (mock) : re-scanne les codes défauts
+    catalog = [
+        {"code": "EE", "label": "Filtre à nettoyer", "severity": "warning"},
+        {"code": "E1", "label": "Défaut sonde température ambiante", "severity": "critical"},
+        {"code": "E2", "label": "Défaut communication unité intérieure", "severity": "critical"},
+        {"code": "E4", "label": "Protection antigel active", "severity": "info"},
+        {"code": "P4", "label": "Pression circuit anormale", "severity": "warning"},
+    ]
+    # sélection aléatoire de 0 à 2 défauts
+    n = random.choices([0, 1, 2], weights=[0.45, 0.4, 0.15])[0]
+    faults = random.sample(catalog, n)
+    await db.system.update_one({}, {"$set": {"fault_codes": faults, "updated_at": now_iso()}}, upsert=True)
     doc = await db.system.find_one({}, {"_id": 0})
     return System(**doc)
 

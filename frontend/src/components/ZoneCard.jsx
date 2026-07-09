@@ -1,14 +1,24 @@
-import { Minus, Plus, ArrowsOutLineVertical, ArrowsInLineVertical } from "@phosphor-icons/react";
+import { useState } from "react";
+import { Minus, Plus, ArrowsOutLineVertical, ArrowsInLineVertical, PencilSimple, Check, X } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
 import { ZoneIcon } from "../lib/icons";
 import { Switch } from "./ui/switch";
 
-export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, index }) => {
+export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, index }) => {
   const heat = mode === "chaud";
   const accent = heat ? "#FF5722" : "#3B82F6";
   const active = zone.active && systemOn;
   const diff = zone.current_temp - zone.setpoint;
   const reaching = active && Math.abs(diff) > 0.3;
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(zone.name);
+
+  const saveName = () => {
+    const v = draft.trim();
+    if (v && v !== zone.name) onRename(zone.id, v);
+    setEditing(false);
+  };
 
   const adjust = (d) => {
     const next = Math.min(30, Math.max(15, zone.setpoint + d));
@@ -32,7 +42,46 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, index }) 
             <ZoneIcon name={zone.icon} weight="duotone" size={22} />
           </div>
           <div>
-            <h3 className="font-display font-bold text-lg leading-tight tracking-tight">{zone.name}</h3>
+            {editing ? (
+              <div className="flex items-center gap-1">
+                <input
+                  data-testid={`zone-name-input-${zone.id}`}
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveName();
+                    if (e.key === "Escape") { setDraft(zone.name); setEditing(false); }
+                  }}
+                  className="bg-black/50 border border-border/70 rounded px-2 py-1 text-base font-display font-bold w-40 outline-none focus:border-zinc-500"
+                />
+                <button
+                  data-testid={`zone-name-save-${zone.id}`}
+                  onClick={saveName}
+                  className="w-7 h-7 rounded flex items-center justify-center text-online hover:bg-white/5 transition-colors duration-200"
+                >
+                  <Check weight="bold" size={16} />
+                </button>
+                <button
+                  onClick={() => { setDraft(zone.name); setEditing(false); }}
+                  className="w-7 h-7 rounded flex items-center justify-center text-zinc-500 hover:bg-white/5 transition-colors duration-200"
+                >
+                  <X weight="bold" size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h3 className="font-display font-bold text-lg leading-tight tracking-tight">{zone.name}</h3>
+                <button
+                  data-testid={`zone-name-edit-${zone.id}`}
+                  onClick={() => { setDraft(zone.name); setEditing(true); }}
+                  className="text-zinc-600 hover:text-white transition-colors duration-200"
+                  aria-label="Renommer la zone"
+                >
+                  <PencilSimple size={15} />
+                </button>
+              </div>
+            )}
             <p className="text-xs text-zinc-500">
               Registre : {zone.damper_open ? "Ouvert" : "Fermé"}
             </p>

@@ -8,6 +8,8 @@ const http = axios.create({ baseURL: API });
 export const api = {
   getSystem: () => http.get("/system").then((r) => r.data),
   updateSystem: (data) => http.put("/system", data).then((r) => r.data),
+  masterPower: (on) => http.post("/system/master-power", null, { params: { on } }).then((r) => r.data),
+  runDiagnostic: () => http.post("/system/diagnostic").then((r) => r.data),
   getZones: () => http.get("/zones").then((r) => r.data),
   updateZone: (id, data) => http.put(`/zones/${id}`, data).then((r) => r.data),
   getDevices: () => http.get("/devices").then((r) => r.data),
