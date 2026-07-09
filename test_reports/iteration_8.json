@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend-only validation for iteration 8 bug fix: per-device pairing buttons directly inside CreateInstallationDialog. All targeted UI elements are visible, functional, and the full end-to-end flow works.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "CreateInstallationDialog", "issues": ["Console warning: Missing `Description` or `aria-describedby={undefined}` on DialogContent (a11y nit)"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Nit) Add DialogDescription (or aria-describedby) to CreateInstallationDialog and PairingPanel dialogs to remove Radix a11y console warnings."
+  ],
+  "critical_code_review_comments": [
+    "CreateInstallationDialog.jsx is clean and focused (~250 lines); good use of data-testid; local ref generation is intentional per problem statement (mocked).",
+    "Consider disabling create-submit-btn while pairingKey !== null to avoid submitting mid-pairing (edge case)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "installateur@demo.fr/Demo1234!, client@demo.fr/Demo1234!, invite@demo.fr/Demo1234!",
+  "seed_data_creation": "Created TEST_Assistant_Pairing installation and deleted it via DELETE /api/installations/{id} (status 200). No residual test data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Verified: (1) gainable-pair-btn visible+clickable, spinner then displays CZ- ref + QR, label toggles to 'Ré-appairer'. (2) zone-pair-0 and zone-pair-1 visible and functional identically. (3) auto-associate-btn generates refs for gainable + all zones (observed 3 CZ- codes rendered). (4) create-submit-btn creates installation and navigates to /installations/{id} with all devices persisted. (5) Post-creation regression on 'Maison Client Démo' as client: scan-devices-btn works, 3 pairing-associate-* buttons appear with pre-selected Zone select, one-click association shows toast 'Thermostat Buanderie associé'. Guest lecture-seule not explicitly retested (client session persisted through cookie); previous iterations already covered it and no code touching guest permissions changed in this iteration.",
+  "rca of the issue": "Original user complaint 'Je ne vois pas les boutons d'association' RESOLVED: pairing buttons are now rendered inline per device (gainable-pair-btn, zone-pair-{i}) plus a bulk auto-associate-btn inside the creation assistant, exactly where the user expected them."
+}
