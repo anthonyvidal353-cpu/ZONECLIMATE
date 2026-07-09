@@ -191,8 +191,22 @@ class ScheduleSlotCreate(BaseModel):
     enabled: bool = True
 
 
+class DeviceSpec(BaseModel):
+    name: str
+    product_id: str
+
+
+class ZoneSpec(BaseModel):
+    name: str
+    icon: str = "house"
+    master: bool = False
+    thermostat: DeviceSpec
+
+
 class InstallationCreate(BaseModel):
     name: str
+    gainable: Optional[DeviceSpec] = None
+    zones: Optional[List[ZoneSpec]] = None
 
 
 class InstallationUpdate(BaseModel):
@@ -224,27 +238,52 @@ ZONES_DEF = [
 ]
 
 
-async def seed_installation_equipment(installation_id: str):
+async def seed_installation_equipment(installation_id: str, gainable=None, zones_spec=None):
     await db.system.insert_one(System(
         installation_id=installation_id,
         fault_codes=[FaultCode(code="EE", label="Filtre à nettoyer", severity="warning")],
     ).model_dump())
     zones, devices = [], []
-    for i, (name, icon, cur, sp) in enumerate(ZONES_DEF):
-        master = i == 0
-        z = Zone(installation_id=installation_id, name=name, icon=icon,
-                 current_temp=cur, setpoint=sp, order=i, is_master=master)
-        therm = Device(installation_id=installation_id, name=f"Thermostat {name}",
-                       category="thermostat", product_id=f"SL-THERMO-{1000+i}",
-                       battery=random.randint(60, 100), signal=random.randint(70, 99),
-                       zone_id=z.id)
-        z.device_id = therm.id
-        devices.append(therm)
-        if master:
-            devices.append(Device(installation_id=installation_id, name="Gainable Principal",
-                                  category="gainable", product_id="SL-DUCT-9920", signal=98,
-                                  zone_id=z.id))
-        zones.append(z.model_dump())
+
+    if zones_spec:
+        # Configuration fournie : association gainable + thermostats SmartLife
+        if not any(z.master for z in zones_spec):
+            zones_spec[0].master = True
+        master_seen = False
+        for i, zs in enumerate(zones_spec):
+            master = zs.master and not master_seen
+            if master:
+                master_seen = True
+            z = Zone(installation_id=installation_id, name=zs.name, icon=zs.icon,
+                     current_temp=21.0, setpoint=21.0, order=i, is_master=master)
+            therm = Device(installation_id=installation_id, name=zs.thermostat.name,
+                           category="thermostat", product_id=zs.thermostat.product_id,
+                           battery=random.randint(60, 100), signal=random.randint(70, 99),
+                           zone_id=z.id)
+            z.device_id = therm.id
+            devices.append(therm)
+            if master and gainable:
+                devices.append(Device(installation_id=installation_id, name=gainable.name,
+                                      category="gainable", product_id=gainable.product_id,
+                                      signal=98, zone_id=z.id))
+            zones.append(z.model_dump())
+    else:
+        for i, (name, icon, cur, sp) in enumerate(ZONES_DEF):
+            master = i == 0
+            z = Zone(installation_id=installation_id, name=name, icon=icon,
+                     current_temp=cur, setpoint=sp, order=i, is_master=master)
+            therm = Device(installation_id=installation_id, name=f"Thermostat {name}",
+                           category="thermostat", product_id=f"SL-THERMO-{1000+i}",
+                           battery=random.randint(60, 100), signal=random.randint(70, 99),
+                           zone_id=z.id)
+            z.device_id = therm.id
+            devices.append(therm)
+            if master:
+                devices.append(Device(installation_id=installation_id, name="Gainable Principal",
+                                      category="gainable", product_id="SL-DUCT-9920", signal=98,
+                                      zone_id=z.id))
+            zones.append(z.model_dump())
+
     await db.zones.insert_many(zones)
     await db.devices.insert_many([d.model_dump() for d in devices])
 
@@ -310,11 +349,13 @@ def can_write(user: dict, inst: dict) -> bool:
     role = user["role"]
     if role == "super_admin":
         return True
+    if role == "moderator":
+        return inst.get("created_by") == user["id"]  # écrit sur ce qu'il a créé
     if role == "installer":
         return inst.get("installer_id") == user["id"] and inst.get("installer_access", False)
     if role == "client":
         return inst.get("owner_id") == user["id"]
-    return False  # moderator, guest => read-only
+    return False  # guest => read-only
 
 
 async def get_installation_for(user: dict, installation_id: str, write: bool = False) -> dict:
@@ -417,11 +458,11 @@ async def list_installations(user: dict = Depends(get_current_user)):
 
 @api_router.post("/installations")
 async def create_installation(payload: InstallationCreate,
-                              user: dict = Depends(require_roles("super_admin", "installer"))):
+                              user: dict = Depends(require_roles("super_admin", "moderator", "installer"))):
     inst = Installation(name=payload.name, created_by=user["id"],
                         installer_id=user["id"] if user["role"] == "installer" else None)
     await db.installations.insert_one(inst.model_dump())
-    await seed_installation_equipment(inst.id)
+    await seed_installation_equipment(inst.id, gainable=payload.gainable, zones_spec=payload.zones)
     out = await enrich_installation(inst.model_dump())
     out["can_write"] = True
     return out

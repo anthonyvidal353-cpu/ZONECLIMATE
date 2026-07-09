@@ -39,7 +39,7 @@ export const api = {
   deleteUser: (id) => http.delete(`/users/${id}`).then((r) => r.data),
   // installations
   listInstallations: () => http.get("/installations").then((r) => r.data),
-  createInstallation: (name) => http.post("/installations", { name }).then((r) => r.data),
+  createInstallation: (payload) => http.post("/installations", payload).then((r) => r.data),
   getInstallation: (id) => http.get(`/installations/${id}`).then((r) => r.data),
   updateInstallation: (id, data) => http.put(`/installations/${id}`, data).then((r) => r.data),
   // invitations / members

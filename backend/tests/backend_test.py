@@ -254,6 +254,86 @@ class TestInstallerCreate:
         r = sess["client"].post(f"{API}/installations", json={"name": "TEST_ClientForbidden"})
         assert r.status_code == 403
 
+    def test_guest_cannot_create(self, sess):
+        r = sess["guest"].post(f"{API}/installations", json={"name": "TEST_GuestForbidden"})
+        assert r.status_code == 403
+
+
+# ---------- NEW: Config-based install creation with equipment association ----------
+class TestInstallationCreateWithConfig:
+    def _payload(self, name):
+        return {
+            "name": name,
+            "gainable": {"name": "Gainable Test", "product_id": "SL-DUCT-TEST01"},
+            "zones": [
+                {"name": "Salon TEST", "icon": "couch", "master": True,
+                 "thermostat": {"name": "Thermostat Salon TEST", "product_id": "SL-THERMO-T001"}},
+                {"name": "Bureau TEST", "icon": "desktop", "master": False,
+                 "thermostat": {"name": "Thermostat Bureau TEST", "product_id": "SL-THERMO-T002"}},
+                {"name": "Chambre TEST", "icon": "bed", "master": False,
+                 "thermostat": {"name": "Thermostat Chambre TEST", "product_id": "SL-THERMO-T003"}},
+            ],
+        }
+
+    def test_installer_create_with_config(self, sess):
+        r = sess["installer"].post(f"{API}/installations", json=self._payload("TEST_Installer_Config"))
+        assert r.status_code == 200, r.text
+        iid = r.json()["id"]
+        zones = sess["installer"].get(f"{API}/installations/{iid}/zones").json()
+        assert len(zones) == 3
+        names = [z["name"] for z in zones]
+        assert names == ["Salon TEST", "Bureau TEST", "Chambre TEST"]
+        masters = [z for z in zones if z["is_master"]]
+        assert len(masters) == 1 and masters[0]["name"] == "Salon TEST"
+        devices = sess["installer"].get(f"{API}/installations/{iid}/devices").json()
+        gainables = [d for d in devices if d["category"] == "gainable"]
+        thermos = [d for d in devices if d["category"] == "thermostat"]
+        assert len(gainables) == 1
+        assert gainables[0]["product_id"] == "SL-DUCT-TEST01"
+        assert gainables[0]["zone_id"] == masters[0]["id"]
+        assert len(thermos) == 3
+        pids = {d["product_id"] for d in thermos}
+        assert {"SL-THERMO-T001", "SL-THERMO-T002", "SL-THERMO-T003"} == pids
+
+    def test_moderator_can_create_and_write(self, sess):
+        r = sess["moderator"].post(f"{API}/installations", json=self._payload("TEST_Moderator_Config"))
+        assert r.status_code == 200, r.text
+        inst = r.json()
+        assert inst["can_write"] is True
+        iid = inst["id"]
+        # Moderator can write on the installation they created
+        r2 = sess["moderator"].put(f"{API}/installations/{iid}/system", json={"mode": "chaud"})
+        assert r2.status_code == 200
+        # But cannot write on the demo installation (not created by them)
+        demo = next(i for i in sess["moderator"].get(f"{API}/installations").json()
+                    if i["name"] == "Maison Client Démo")
+        r3 = sess["moderator"].put(f"{API}/installations/{demo['id']}/system", json={"mode": "chaud"})
+        assert r3.status_code == 403
+
+    def test_super_admin_can_create(self, sess):
+        r = sess["admin"].post(f"{API}/installations", json=self._payload("TEST_Admin_Config"))
+        assert r.status_code == 200, r.text
+        assert r.json()["can_write"] is True
+
+    def test_client_forbidden_with_config(self, sess):
+        r = sess["client"].post(f"{API}/installations", json=self._payload("TEST_Client_Forbidden_Config"))
+        assert r.status_code == 403
+
+    def test_guest_forbidden_with_config(self, sess):
+        r = sess["guest"].post(f"{API}/installations", json=self._payload("TEST_Guest_Forbidden_Config"))
+        assert r.status_code == 403
+
+    def test_no_master_defaults_to_first(self, sess):
+        payload = self._payload("TEST_NoMaster_Config")
+        for z in payload["zones"]:
+            z["master"] = False
+        r = sess["installer"].post(f"{API}/installations", json=payload)
+        assert r.status_code == 200
+        zones = sess["installer"].get(f"{API}/installations/{r.json()['id']}/zones").json()
+        masters = [z for z in zones if z["is_master"]]
+        assert len(masters) == 1
+        assert masters[0]["order"] == 0
+
 
 # ---------- Invitations flow (guest invite from a throwaway installation) ----------
 class TestInvitations:

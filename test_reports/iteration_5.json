@@ -1,0 +1,27 @@
+{
+  "summary": "Tested new installation-creation-with-equipment-association flow (SmartLife gainable + thermostats), moderator write rights, role gating, and light auth regression. All 38 backend tests pass; UI wizard works end-to-end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Test installations created during previous iterations (TEST_Installer_Install, TEST_Invite_Install, TEST_Installer_Config, TEST_Moderator_Config, TEST_Admin_Config, TEST_NoMaster_Config, TEST_UI_Wizard, etc.) linger in DB — no DELETE /api/installations endpoint exists. Consider adding one or auto-cleanup by prefix for developer hygiene.",
+    "seed_installation_equipment mutates the input zones_spec (sets first.master=True when none provided). Minor side-effect but harmless for now.",
+    "CreateInstallationDialog imports 'Cube' from @phosphor-icons/react but never uses it — dead import."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (38/38)", "frontend": "100% (all wizard + role gating checks passed)"},
+  "test_credentials": "admin@climazone.fr/Admin1234!, moderateur@climazone.fr/Demo1234!, installateur@demo.fr/Demo1234!, client@demo.fr/Demo1234!, invite@demo.fr/Demo1234!",
+  "seed_data_creation": "Created TEST_-prefixed installations during backend + UI runs (TEST_Installer_Config, TEST_Moderator_Config, TEST_Admin_Config, TEST_NoMaster_Config, TEST_UI_Wizard). Demo installation 'Maison Client Démo' + 5 demo users intact.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file at /app/backend/tests/backend_test.py now covers TestInstallationCreateWithConfig (installer/moderator/admin create with gainable+thermostat spec, master defaulting, client/guest 403). Frontend wizard confirmed: fields installation-name-input, gainable-name-input, gainable-id-input, zone-name-{i}, zone-icon-{i}, zone-thermo-{i}, zone-master-{i}, zone-remove-{i}, add-zone-btn, auto-associate-btn, create-submit-btn all functional. After submit, navigates to /installations/{id} and both zone names (with custom master) and device product IDs render in Appareils tab.",
+  "verified_features": [
+    "POST /api/installations accepts full config and seeds zones with is_master + devices with product_id",
+    "MODERATOR can create installations (200) and gets can_write=true on owned; still forbidden on others",
+    "SUPER_ADMIN + INSTALLER can create; CLIENT + GUEST get 403",
+    "Wizard: installer submits payload -> navigate to detail page -> custom zone names + master zone + thermostats + gainable with entered product IDs display",
+    "Home create-installation-btn visible for installer/moderator/admin, hidden for client/guest",
+    "Login regression: all 5 roles login OK; guest still read-only on demo install"
+  ]
+}

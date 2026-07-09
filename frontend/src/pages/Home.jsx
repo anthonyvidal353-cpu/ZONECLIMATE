@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import api, { formatApiErrorDetail } from "../lib/api";
 import { useAuth, ROLE_LABELS } from "../context/AuthContext";
 import { AppShell } from "../components/AppShell";
+import { CreateInstallationDialog } from "../components/CreateInstallationDialog";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -80,24 +81,14 @@ export default function Home() {
   const navigate = useNavigate();
   const [installations, setInstallations] = useState(null);
   const [tab, setTab] = useState("installations");
-  const [newName, setNewName] = useState("");
   const [code, setCode] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
 
-  const canCreate = user.role === "super_admin" || user.role === "installer";
+  const canCreate = ["super_admin", "moderator", "installer"].includes(user.role);
   const isAdminView = user.role === "super_admin" || user.role === "moderator";
 
   const load = useCallback(async () => setInstallations(await api.listInstallations()), []);
   useEffect(() => { load(); }, [load]);
-
-  const create = async () => {
-    if (!newName.trim()) return;
-    const inst = await api.createInstallation(newName.trim());
-    toast.success("Installation créée");
-    setCreateOpen(false); setNewName("");
-    navigate(`/installations/${inst.id}`);
-  };
 
   const join = async () => {
     try {
@@ -146,23 +137,7 @@ export default function Home() {
           </Dialog>
 
           {canCreate && (
-            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="create-installation-btn" className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold">
-                  <Plus weight="bold" size={16} className="mr-2" /> Nouvelle installation
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-[#121212] border-border/70">
-                <DialogHeader><DialogTitle className="font-display tracking-tight">Nouvelle installation</DialogTitle></DialogHeader>
-                <div className="py-2">
-                  <Label className="text-xs text-zinc-400">Nom de l'installation</Label>
-                  <Input data-testid="installation-name-input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex : Maison Dupont" className="mt-1 bg-black/40 border-border/70" />
-                </div>
-                <DialogFooter>
-                  <Button data-testid="create-submit-btn" onClick={create} className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold">Créer</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <CreateInstallationDialog onCreated={(inst) => navigate(`/installations/${inst.id}`)} />
           )}
         </div>
       </div>
