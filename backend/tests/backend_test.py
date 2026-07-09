@@ -118,6 +118,31 @@ class TestZones:
         assert r.status_code == 404
 
 
+# ---------- Set Master (single-master invariant) ----------
+class TestSetMaster:
+    def test_set_master_reassign(self, client):
+        zs = client.get(f"{API}/zones").json()
+        original_master = next(z for z in zs if z["is_master"])
+        target = next(z for z in zs if not z["is_master"])
+        # promote target
+        r = client.post(f"{API}/zones/{target['id']}/set-master")
+        assert r.status_code == 200
+        new_zones = r.json()
+        masters = [z for z in new_zones if z["is_master"]]
+        assert len(masters) == 1
+        assert masters[0]["id"] == target["id"]
+        # verify persistence
+        zs2 = client.get(f"{API}/zones").json()
+        assert sum(1 for z in zs2 if z["is_master"]) == 1
+        assert next(z for z in zs2 if z["is_master"])["id"] == target["id"]
+        # restore original master (Salon)
+        client.post(f"{API}/zones/{original_master['id']}/set-master")
+
+    def test_set_master_404(self, client):
+        r = client.post(f"{API}/zones/does-not-exist/set-master")
+        assert r.status_code == 404
+
+
 # ---------- Devices ----------
 class TestDevices:
     def test_list_devices(self, client):

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Minus, Plus, ArrowsOutLineVertical, ArrowsInLineVertical, PencilSimple, Check, X } from "@phosphor-icons/react";
+import { Minus, Plus, ArrowsOutLineVertical, ArrowsInLineVertical, PencilSimple, Check, X, Crown } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
 import { ZoneIcon } from "../lib/icons";
 import { Switch } from "./ui/switch";
 
-export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, index }) => {
+export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, onSetMaster, index }) => {
   const heat = mode === "chaud";
   const accent = heat ? "#FF5722" : "#3B82F6";
   const active = zone.active && systemOn;
@@ -87,11 +87,22 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
             </p>
           </div>
         </div>
-        <Switch
-          data-testid={`zone-toggle-${zone.id}`}
-          checked={zone.active}
-          onCheckedChange={() => onToggle(zone)}
-        />
+        <div className="flex items-center gap-2">
+          <button
+            data-testid={`zone-set-master-${zone.id}`}
+            onClick={() => onSetMaster(zone.id)}
+            className="w-8 h-8 rounded-full border border-border/70 flex items-center justify-center text-zinc-500 hover:text-amber-400 hover:border-amber-400/50 transition-colors duration-200 active:scale-95"
+            aria-label="Définir comme thermostat maître"
+            title="Définir comme thermostat maître"
+          >
+            <Crown size={15} weight="bold" />
+          </button>
+          <Switch
+            data-testid={`zone-toggle-${zone.id}`}
+            checked={zone.active}
+            onCheckedChange={() => onToggle(zone)}
+          />
+        </div>
       </div>
 
       <div className="flex items-end justify-between mt-6">

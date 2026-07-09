@@ -90,6 +90,13 @@ function App() {
     toast.success(`Zone renommée : ${name}`);
   };
 
+  const setMaster = async (id) => {
+    const zs = await api.setMaster(id);
+    setZones(zs);
+    const z = zs.find((x) => x.id === id);
+    toast.success(`« ${z?.name} » est désormais le thermostat maître`);
+  };
+
   const masterPower = async (on) => {
     const { system: sys, zones: zs } = await api.masterPower(on);
     setSystem(sys);
@@ -207,6 +214,7 @@ function App() {
                 onSetpoint={setZoneSetpoint}
                 onRename={renameZone}
                 onDiagnostic={runDiagnostic}
+                onToggle={toggleZone}
                 diagnosing={diagnosing}
               />
             )}
@@ -224,6 +232,7 @@ function App() {
                   onSetpoint={setZoneSetpoint}
                   onToggle={toggleZone}
                   onRename={renameZone}
+                  onSetMaster={setMaster}
                 />
               ))}
             </div>

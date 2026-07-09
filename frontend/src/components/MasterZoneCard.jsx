@@ -1,10 +1,11 @@
 import { useState } from "react";
 import {
   Fire, Snowflake, Power, Minus, Plus, Wind, PencilSimple, Check, X,
-  Warning, WarningCircle, Info, ShieldCheck, Stethoscope, ArrowsClockwise, Cube,
+  Warning, WarningCircle, Info, ShieldCheck, Stethoscope, ArrowsClockwise, Crown,
 } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ZoneIcon } from "../lib/icons";
+import { Switch } from "./ui/switch";
 
 const FAN_OPTIONS = [
   { key: "auto", label: "Auto" },
@@ -19,7 +20,7 @@ const SEVERITY = {
   critical: { color: "#EF4444", bg: "rgba(239,68,68,0.12)", Icon: WarningCircle, label: "Critique" },
 };
 
-export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoint, onRename, onDiagnostic, diagnosing }) => {
+export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoint, onRename, onDiagnostic, onToggle, diagnosing }) => {
   const heat = system.mode === "chaud";
   const accent = heat ? "#FF5722" : "#3B82F6";
   const on = system.power;
@@ -68,7 +69,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
               <div>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-1 overline text-[9px] px-2 py-0.5 rounded-full" style={{ background: `${accent}22`, color: accent }}>
-                    <Cube weight="fill" size={10} /> Gainable
+                    <Crown weight="fill" size={10} /> Thermostat Maître
                   </span>
                 </div>
                 {editing ? (
@@ -100,9 +101,19 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                   </div>
                 )}
                 <p className="text-xs text-zinc-500 mt-1">
-                  Système {on ? "Allumé" : "Éteint"} · Registre {zone.damper_open ? "ouvert" : "fermé"}
+                  Zone {zone.active ? "active" : "désactivée"} · Registre {zone.damper_open ? "ouvert" : "fermé"}
                 </p>
               </div>
+            </div>
+
+            {/* Marche/arrêt de la zone maître uniquement */}
+            <div className="flex flex-col items-end gap-1">
+              <Switch
+                data-testid="master-zone-toggle"
+                checked={zone.active}
+                onCheckedChange={() => onToggle(zone)}
+              />
+              <span className="text-[10px] text-zinc-500">Cette zone</span>
             </div>
           </div>
 

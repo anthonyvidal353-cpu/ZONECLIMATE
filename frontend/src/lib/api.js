@@ -12,6 +12,7 @@ export const api = {
   runDiagnostic: () => http.post("/system/diagnostic").then((r) => r.data),
   getZones: () => http.get("/zones").then((r) => r.data),
   updateZone: (id, data) => http.put(`/zones/${id}`, data).then((r) => r.data),
+  setMaster: (id) => http.post(`/zones/${id}/set-master`).then((r) => r.data),
   getDevices: () => http.get("/devices").then((r) => r.data),
   syncDevices: () => http.post("/devices/sync").then((r) => r.data),
   tick: () => http.post("/simulate/tick").then((r) => r.data),

@@ -77,7 +77,6 @@ class ZoneUpdate(BaseModel):
     setpoint: Optional[float] = None
     active: Optional[bool] = None
     name: Optional[str] = None
-    is_master: Optional[bool] = None
 
 
 class SystemUpdate(BaseModel):
@@ -216,6 +215,17 @@ async def update_zone(zone_id: str, payload: ZoneUpdate):
         raise HTTPException(404, "Zone introuvable")
     doc = await db.zones.find_one({"id": zone_id}, {"_id": 0})
     return Zone(**doc)
+
+
+@api_router.post("/zones/{zone_id}/set-master", response_model=List[Zone])
+async def set_master_zone(zone_id: str):
+    # Réassigne le rôle de thermostat maître (choix du mode) à une seule zone
+    if not await db.zones.find_one({"id": zone_id}):
+        raise HTTPException(404, "Zone introuvable")
+    await db.zones.update_many({}, {"$set": {"is_master": False}})
+    await db.zones.update_one({"id": zone_id}, {"$set": {"is_master": True}})
+    docs = await db.zones.find({}, {"_id": 0}).sort("order", 1).to_list(200)
+    return [Zone(**d) for d in docs]
 
 
 # ----------------------------- Devices -----------------------------
