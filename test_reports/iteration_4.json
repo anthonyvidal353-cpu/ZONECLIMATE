@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 4 (MAJOR auth + multi-installation + invitations): rewrote backend_test.py from scratch for the new JWT-scoped API. 31/31 pytest tests pass (auth, users admin scoping, installations listing by role, per-installation system/zones/devices/schedule access control, master-power, set-master, diagnostic, installer create+seed, invitation client & guest flows, member listing, installer_access toggle). Playwright frontend E2E: login as client/guest/admin/moderator/installer all succeed; role-scoped UI verified (client full dashboard, guest read-only with readonly-notice + no mode/shutdown/diagnostic/master-toggle/set-master/add-slot/invite-guest/installer-access-toggle, admin console shows role-select + delete on all users, moderator sees users read-only with 0 selects/deletes, installer can create installation which seeds 6 zones and generate client-invite code, join with invalid code shows toast error).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DevicesPanel", "issue": "Guest sees the 'Synchroniser' button (data-testid sync-devices-btn) in the DOM — it is disabled via `disabled` attr when canWrite=false, so functionally safe (backend also enforces 403), but per spec ('no sync/add/delete buttons') consider hiding it entirely to match add-slot/invite-guest patterns.", "selector": "[data-testid=sync-devices-btn]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Home", "issues": ["When returning to /home via back-btn, the empty-state text 'Aucune installation pour l'instant…' flashes for a moment before installations load. Consider a skeleton/spinner while `installations === null` to avoid misleading empty message."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Optional: hide (not just disable) sync-devices-btn when !canWrite to align with other read-only guards.",
+    "Optional: differentiate loading vs empty state on Home installations list."
+  ],
+  "critical_code_review_comments": [
+    "server.py grew to ~717 lines; consider splitting into modules: auth.py, installations.py, climate.py, invitations.py.",
+    "FastAPI @app.on_event startup/shutdown are deprecated — migrate to lifespan handler.",
+    "cookie is set with `secure=True, samesite='none'` which is correct for cross-site prod but will not be sent over http:// during local dev — Bearer header path covers it; document this.",
+    "No brute-force lockout on /auth/login (spec asks bcrypt/httpOnly/CORS which are OK; lockout after 5 fails is missing but was not part of features_to_test).",
+    "master-power endpoint takes `on` as query param — inconsistent with rest of JSON-body API convention.",
+    "get_installation_for returns 403 for unknown installation only if id matches nothing in accessible_ids (i.e., 404 for admin/moderator, 403 for others). Behaviour is fine but slightly asymmetric.",
+    "listInvites in MembersPanel is called even for guest users (returns 403); .catch(() => []) swallows it — silent 403 in devtools noise, harmless."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (31/31)", "frontend": "~95% (all critical role/permission flows verified)"},
+  "test_credentials": "See /app/memory/test_credentials.md — all 5 demo accounts used (admin/moderator/installer/client/guest).",
+  "seed_data_creation": "Created a few TEST_ installations via installer (TEST_Installer_Install, TEST_Invite_Install, TEST_UI_Inst, TEST_UI_Installer) and 2 throwaway test users (test_client_*, test_guest_*) during invitation flow. Demo installation & 5 demo users untouched.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite at /app/backend/tests/backend_test.py covers full auth+RBAC matrix. Base URL taken from frontend/.env REACT_APP_BACKEND_URL. Tests run in parallel via pytest-xdist. Playwright: clear cookies + localStorage.clear() then reload before each role login to avoid stale token. Demo installation still owned by client@demo.fr with installer_access=true (restored by tests). Multiple TEST_ installations remain in DB — don't rely on installation counts."
+}

@@ -20,7 +20,7 @@ const SEVERITY = {
   critical: { color: "#EF4444", bg: "rgba(239,68,68,0.12)", Icon: WarningCircle, label: "Critique" },
 };
 
-export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoint, onRename, onDiagnostic, onToggle, diagnosing }) => {
+export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoint, onRename, onDiagnostic, onToggle, canWrite = true, diagnosing }) => {
   const heat = system.mode === "chaud";
   const accent = heat ? "#FF5722" : "#3B82F6";
   const on = system.power;
@@ -95,9 +95,11 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                 ) : (
                   <div className="flex items-center gap-2 mt-0.5">
                     <h2 className="font-display text-2xl md:text-3xl font-extrabold tracking-tighter">{zone.name}</h2>
-                    <button data-testid="master-zone-name-edit" onClick={() => { setDraft(zone.name); setEditing(true); }} className="text-zinc-600 hover:text-white transition-colors duration-200" aria-label="Renommer">
-                      <PencilSimple size={16} />
-                    </button>
+                    {canWrite && (
+                      <button data-testid="master-zone-name-edit" onClick={() => { setDraft(zone.name); setEditing(true); }} className="text-zinc-600 hover:text-white transition-colors duration-200" aria-label="Renommer">
+                        <PencilSimple size={16} />
+                      </button>
+                    )}
                   </div>
                 )}
                 <p className="text-xs text-zinc-500 mt-1">
@@ -107,14 +109,16 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
             </div>
 
             {/* Marche/arrêt de la zone maître uniquement */}
-            <div className="flex flex-col items-end gap-1">
-              <Switch
-                data-testid="master-zone-toggle"
-                checked={zone.active}
-                onCheckedChange={() => onToggle(zone)}
-              />
-              <span className="text-[10px] text-zinc-500">Cette zone</span>
-            </div>
+            {canWrite && (
+              <div className="flex flex-col items-end gap-1">
+                <Switch
+                  data-testid="master-zone-toggle"
+                  checked={zone.active}
+                  onCheckedChange={() => onToggle(zone)}
+                />
+                <span className="text-[10px] text-zinc-500">Cette zone</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-end justify-between">
@@ -128,7 +132,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
               <button
                 data-testid="master-temp-down"
                 onClick={() => adjust(-0.5)}
-                disabled={!on}
+                disabled={!on || !canWrite}
                 className="w-10 h-10 rounded-full border border-border/70 flex items-center justify-center text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
               >
                 <Minus weight="bold" size={18} />
@@ -140,7 +144,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
               <button
                 data-testid="master-temp-up"
                 onClick={() => adjust(0.5)}
-                disabled={!on}
+                disabled={!on || !canWrite}
                 className="w-10 h-10 rounded-full border border-border/70 flex items-center justify-center text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
               >
                 <Plus weight="bold" size={18} />
@@ -153,55 +157,66 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
         <div className="flex flex-col gap-4 lg:border-l lg:border-border/50 lg:pl-8">
           <p className="overline text-zinc-500">Commandes système</p>
 
-          <button
-            data-testid="master-shutdown-btn"
-            onClick={() => onMasterPower(!on)}
-            className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold border transition-colors duration-200 active:scale-95"
-            style={{
-              borderColor: on ? "rgba(239,68,68,0.5)" : "rgba(16,185,129,0.5)",
-              background: on ? "rgba(239,68,68,0.12)" : "rgba(16,185,129,0.12)",
-              color: on ? "#EF4444" : "#10B981",
-            }}
-          >
-            <Power weight="bold" size={18} />
-            {on ? "Éteindre tout le système" : "Démarrer tout le système"}
-          </button>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex rounded-full border border-border/70 p-1 bg-black/40">
+          {canWrite ? (
+            <>
               <button
-                data-testid="mode-chaud-btn"
-                onClick={() => onSystem({ mode: "chaud" })}
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200"
-                style={{ background: heat ? "#FF5722" : "transparent", color: heat ? "#0A0A0A" : "#A1A1AA" }}
+                data-testid="master-shutdown-btn"
+                onClick={() => onMasterPower(!on)}
+                className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold border transition-colors duration-200 active:scale-95"
+                style={{
+                  borderColor: on ? "rgba(239,68,68,0.5)" : "rgba(16,185,129,0.5)",
+                  background: on ? "rgba(239,68,68,0.12)" : "rgba(16,185,129,0.12)",
+                  color: on ? "#EF4444" : "#10B981",
+                }}
               >
-                <Fire weight="fill" size={16} /> Chaud
+                <Power weight="bold" size={18} />
+                {on ? "Éteindre tout le système" : "Démarrer tout le système"}
               </button>
-              <button
-                data-testid="mode-froid-btn"
-                onClick={() => onSystem({ mode: "froid" })}
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200"
-                style={{ background: !heat ? "#3B82F6" : "transparent", color: !heat ? "#0A0A0A" : "#A1A1AA" }}
-              >
-                <Snowflake weight="fill" size={16} /> Froid
-              </button>
-            </div>
 
-            <div className="inline-flex items-center gap-1 rounded-full border border-border/70 p-1 bg-black/40">
-              <Wind size={16} className="text-zinc-500 ml-2" aria-hidden="true" />
-              {FAN_OPTIONS.map((f) => (
-                <button
-                  key={f.key}
-                  data-testid={`fan-${f.key}-btn`}
-                  onClick={() => onSystem({ fan_speed: f.key })}
-                  className="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200"
-                  style={{ background: system.fan_speed === f.key ? "#FAFAFA" : "transparent", color: system.fan_speed === f.key ? "#0A0A0A" : "#A1A1AA" }}
-                >
-                  {f.label}
-                </button>
-              ))}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex rounded-full border border-border/70 p-1 bg-black/40">
+                  <button
+                    data-testid="mode-chaud-btn"
+                    onClick={() => onSystem({ mode: "chaud" })}
+                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200"
+                    style={{ background: heat ? "#FF5722" : "transparent", color: heat ? "#0A0A0A" : "#A1A1AA" }}
+                  >
+                    <Fire weight="fill" size={16} /> Chaud
+                  </button>
+                  <button
+                    data-testid="mode-froid-btn"
+                    onClick={() => onSystem({ mode: "froid" })}
+                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200"
+                    style={{ background: !heat ? "#3B82F6" : "transparent", color: !heat ? "#0A0A0A" : "#A1A1AA" }}
+                  >
+                    <Snowflake weight="fill" size={16} /> Froid
+                  </button>
+                </div>
+
+                <div className="inline-flex items-center gap-1 rounded-full border border-border/70 p-1 bg-black/40">
+                  <Wind size={16} className="text-zinc-500 ml-2" aria-hidden="true" />
+                  {FAN_OPTIONS.map((f) => (
+                    <button
+                      key={f.key}
+                      data-testid={`fan-${f.key}-btn`}
+                      onClick={() => onSystem({ fan_speed: f.key })}
+                      className="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200"
+                      style={{ background: system.fan_speed === f.key ? "#FAFAFA" : "transparent", color: system.fan_speed === f.key ? "#0A0A0A" : "#A1A1AA" }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-md border border-border/50 bg-black/30 p-4 text-sm text-zinc-400" data-testid="readonly-notice">
+              Mode <span style={{ color: accent }} className="font-semibold">{heat ? "Chaud" : "Froid"}</span> ·
+              Ventilation <span className="font-semibold text-zinc-200">{system.fan_speed}</span> ·
+              Système <span className="font-semibold" style={{ color: on ? "#10B981" : "#EF4444" }}>{on ? "actif" : "arrêté"}</span>
+              <p className="text-xs text-zinc-500 mt-1">Consultation seule — vous ne pouvez pas modifier les commandes.</p>
             </div>
-          </div>
+          )}
 
           {/* Fault codes */}
           <div className="mt-1 rounded-md border border-border/50 bg-black/30 p-4" data-testid="fault-codes">
@@ -210,15 +225,17 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                 <Stethoscope weight="duotone" size={16} className="text-zinc-400" />
                 <span className="overline text-zinc-400">Codes défauts</span>
               </div>
-              <button
-                data-testid="run-diagnostic-btn"
-                onClick={onDiagnostic}
-                disabled={diagnosing}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-300 hover:text-white transition-colors duration-200 disabled:opacity-40"
-              >
-                <ArrowsClockwise size={13} weight="bold" className={diagnosing ? "animate-spin" : ""} />
-                Diagnostic
-              </button>
+              {canWrite && (
+                <button
+                  data-testid="run-diagnostic-btn"
+                  onClick={onDiagnostic}
+                  disabled={diagnosing}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-300 hover:text-white transition-colors duration-200 disabled:opacity-40"
+                >
+                  <ArrowsClockwise size={13} weight="bold" className={diagnosing ? "animate-spin" : ""} />
+                  Diagnostic
+                </button>
+              )}
             </div>
 
             <AnimatePresence mode="popLayout">

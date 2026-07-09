@@ -4,10 +4,11 @@ import { motion } from "framer-motion";
 import { ZoneIcon } from "../lib/icons";
 import { Switch } from "./ui/switch";
 
-export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, onSetMaster, index }) => {
+export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, onSetMaster, canWrite = true, index }) => {
   const heat = mode === "chaud";
   const accent = heat ? "#FF5722" : "#3B82F6";
   const active = zone.active && systemOn;
+  const writable = canWrite && active;
   const diff = zone.current_temp - zone.setpoint;
   const reaching = active && Math.abs(diff) > 0.3;
 
@@ -72,14 +73,16 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
             ) : (
               <div className="flex items-center gap-2">
                 <h3 className="font-display font-bold text-lg leading-tight tracking-tight">{zone.name}</h3>
-                <button
-                  data-testid={`zone-name-edit-${zone.id}`}
-                  onClick={() => { setDraft(zone.name); setEditing(true); }}
-                  className="text-zinc-600 hover:text-white transition-colors duration-200"
-                  aria-label="Renommer la zone"
-                >
-                  <PencilSimple size={15} />
-                </button>
+                {canWrite && (
+                  <button
+                    data-testid={`zone-name-edit-${zone.id}`}
+                    onClick={() => { setDraft(zone.name); setEditing(true); }}
+                    className="text-zinc-600 hover:text-white transition-colors duration-200"
+                    aria-label="Renommer la zone"
+                  >
+                    <PencilSimple size={15} />
+                  </button>
+                )}
               </div>
             )}
             <p className="text-xs text-zinc-500">
@@ -88,20 +91,24 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            data-testid={`zone-set-master-${zone.id}`}
-            onClick={() => onSetMaster(zone.id)}
-            className="w-8 h-8 rounded-full border border-border/70 flex items-center justify-center text-zinc-500 hover:text-amber-400 hover:border-amber-400/50 transition-colors duration-200 active:scale-95"
-            aria-label="Définir comme thermostat maître"
-            title="Définir comme thermostat maître"
-          >
-            <Crown size={15} weight="bold" />
-          </button>
-          <Switch
-            data-testid={`zone-toggle-${zone.id}`}
-            checked={zone.active}
-            onCheckedChange={() => onToggle(zone)}
-          />
+          {canWrite && (
+            <>
+              <button
+                data-testid={`zone-set-master-${zone.id}`}
+                onClick={() => onSetMaster(zone.id)}
+                className="w-8 h-8 rounded-full border border-border/70 flex items-center justify-center text-zinc-500 hover:text-amber-400 hover:border-amber-400/50 transition-colors duration-200 active:scale-95"
+                aria-label="Définir comme thermostat maître"
+                title="Définir comme thermostat maître"
+              >
+                <Crown size={15} weight="bold" />
+              </button>
+              <Switch
+                data-testid={`zone-toggle-${zone.id}`}
+                checked={zone.active}
+                onCheckedChange={() => onToggle(zone)}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -128,7 +135,7 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
           <button
             data-testid={`zone-temp-down-${zone.id}`}
             onClick={() => adjust(-0.5)}
-            disabled={!active}
+            disabled={!writable}
             className="w-9 h-9 rounded-full border border-border/70 flex items-center justify-center text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
           >
             <Minus weight="bold" size={16} />
@@ -139,7 +146,7 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
           <button
             data-testid={`zone-temp-up-${zone.id}`}
             onClick={() => adjust(0.5)}
-            disabled={!active}
+            disabled={!writable}
             className="w-9 h-9 rounded-full border border-border/70 flex items-center justify-center text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
           >
             <Plus weight="bold" size={16} />

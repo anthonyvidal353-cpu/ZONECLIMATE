@@ -1,76 +1,172 @@
-from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
-import random
 from pathlib import Path
-from pydantic import BaseModel, Field, BeforeValidator
-from typing import List, Optional, Annotated, Any
-from bson import ObjectId
-import uuid
-from datetime import datetime, timezone
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+import os
+import logging
+import random
+import uuid
+from datetime import datetime, timezone, timedelta
+
+import bcrypt
+import jwt
+from bson import ObjectId
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, Field, EmailStr
+from typing import List, Optional
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-app = FastAPI(title="SmartLife Zoning Gainable")
+JWT_SECRET = os.environ['JWT_SECRET']
+JWT_ALGORITHM = "HS256"
+
+app = FastAPI(title="ClimaZone")
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+ROLES = ["super_admin", "moderator", "installer", "client", "guest"]
 
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-PyObjectId = Annotated[str, BeforeValidator(lambda v: str(v) if isinstance(v, ObjectId) else v)]
+# ----------------------------- Auth utils -----------------------------
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+
+
+def create_access_token(user_id: str, email: str) -> str:
+    payload = {"sub": user_id, "email": email, "type": "access",
+               "exp": datetime.now(timezone.utc) + timedelta(days=7)}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def public_user(u: dict) -> dict:
+    return {"id": str(u["_id"]), "email": u["email"], "name": u.get("name"),
+            "role": u.get("role"), "created_at": u.get("created_at")}
+
+
+async def get_current_user(request: Request) -> dict:
+    token = request.cookies.get("access_token")
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:]
+    if not token:
+        raise HTTPException(401, "Non authentifié")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            raise HTTPException(401, "Token invalide")
+        user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
+        if not user:
+            raise HTTPException(401, "Utilisateur introuvable")
+        user["id"] = str(user["_id"])
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Session expirée")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Token invalide")
+
+
+def require_roles(*roles):
+    async def dep(user: dict = Depends(get_current_user)):
+        if user["role"] not in roles:
+            raise HTTPException(403, "Accès refusé")
+        return user
+    return dep
 
 
 # ----------------------------- Models -----------------------------
+class RegisterInput(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    role: str = "client"          # self-register: installer | client
+
+
+class LoginInput(BaseModel):
+    email: EmailStr
+    password: str
+
+
 class FaultCode(BaseModel):
     code: str
     label: str
-    severity: str = "warning"      # info | warning | critical
+    severity: str = "warning"
 
 
 class System(BaseModel):
-    mode: str = "chaud"            # chaud | froid
-    power: bool = True             # gainable allumé / éteint
+    installation_id: str
+    mode: str = "chaud"
+    power: bool = True
     master_setpoint: float = 21.0
-    fan_speed: str = "auto"        # auto | bas | moyen | haut
+    fan_speed: str = "auto"
     fault_codes: List[FaultCode] = []
     updated_at: str = Field(default_factory=now_iso)
 
 
-class Device(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    name: str
-    category: str                  # gainable | thermostat
-    product_id: str
-    online: bool = True
-    battery: Optional[int] = None  # % pour thermostats sans fil
-    signal: int = 100
-    zone_id: Optional[str] = None
-
-
 class Zone(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    installation_id: str
     name: str
     icon: str = "house"
     current_temp: float = 21.0
     setpoint: float = 21.0
-    damper_open: bool = True       # registre ouvert/fermé
+    damper_open: bool = True
     active: bool = True
     device_id: Optional[str] = None
-    is_master: bool = False        # zone hébergeant le gainable (thermostat maître)
+    is_master: bool = False
     order: int = 0
+
+
+class Device(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    installation_id: str
+    name: str
+    category: str
+    product_id: str
+    online: bool = True
+    battery: Optional[int] = None
+    signal: int = 100
+    zone_id: Optional[str] = None
+
+
+class ScheduleSlot(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    installation_id: str
+    zone_id: str
+    day: int
+    start: str
+    end: str
+    setpoint: float = 21.0
+    enabled: bool = True
+
+
+class Installation(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    created_by: str
+    owner_id: Optional[str] = None
+    installer_id: Optional[str] = None
+    installer_access: bool = True
+    created_at: str = Field(default_factory=now_iso)
 
 
 class ZoneUpdate(BaseModel):
@@ -86,16 +182,6 @@ class SystemUpdate(BaseModel):
     fan_speed: Optional[str] = None
 
 
-class ScheduleSlot(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    zone_id: str
-    day: int                       # 0 = Lundi ... 6 = Dimanche
-    start: str                     # "07:00"
-    end: str                       # "09:00"
-    setpoint: float = 21.0
-    enabled: bool = True
-
-
 class ScheduleSlotCreate(BaseModel):
     zone_id: str
     day: int
@@ -105,84 +191,384 @@ class ScheduleSlotCreate(BaseModel):
     enabled: bool = True
 
 
-# ----------------------------- Seed -----------------------------
-async def seed_data():
-    if await db.system.count_documents({}) == 0:
-        sys = System(fault_codes=[
-            FaultCode(code="EE", label="Filtre à nettoyer", severity="warning"),
-        ])
-        await db.system.insert_one(sys.model_dump())
+class InstallationCreate(BaseModel):
+    name: str
 
-    if await db.zones.count_documents({}) == 0:
-        zones_def = [
-            ("Salon", "couch", 22.5, 22.0, "cool"),
-            ("Cuisine", "fork", 23.0, 21.0, "warm"),
-            ("Chambre parentale", "bed", 20.0, 20.5, "cool"),
-            ("Chambre enfant", "baby", 21.0, 21.0, "warm"),
-            ("Bureau", "desktop", 22.0, 21.5, "cool"),
-            ("Salle de bain", "shower", 23.5, 23.0, "warm"),
-        ]
-        devices = []
-        zone_docs = []
-        for i, (name, icon, cur, sp, _t) in enumerate(zones_def):
-            master = i == 0  # la 1ère zone héberge le gainable
-            z = Zone(name=name, icon=icon, current_temp=cur, setpoint=sp,
-                     damper_open=True, active=True, order=i, is_master=master)
-            # thermostat sans fil par zone
-            therm = Device(name=f"Thermostat {name}", category="thermostat",
-                           product_id=f"SL-THERMO-{1000+i}", online=True,
-                           battery=random.randint(60, 100), signal=random.randint(70, 99),
-                           zone_id=z.id)
-            z.device_id = therm.id
-            devices.append(therm)
-            if master:
-                # le gainable est installé dans la zone maître
-                gainable = Device(name="Gainable Principal", category="gainable",
-                                  product_id="SL-DUCT-9920", online=True, signal=98,
-                                  zone_id=z.id)
-                devices.append(gainable)
-            zone_docs.append(z.model_dump())
 
-        await db.zones.insert_many(zone_docs)
-        await db.devices.insert_many([d.model_dump() for d in devices])
-        logger.info("Seeded zones + devices")
+class InstallationUpdate(BaseModel):
+    name: Optional[str] = None
+    installer_access: Optional[bool] = None
+
+
+class InviteCreate(BaseModel):
+    role: str                     # client | guest
+    email: Optional[str] = None
+
+
+class AcceptInvite(BaseModel):
+    code: str
+
+
+class RoleUpdate(BaseModel):
+    role: str
+
+
+# ----------------------------- Seeding -----------------------------
+ZONES_DEF = [
+    ("Salon", "couch", 22.5, 22.0),
+    ("Cuisine", "fork", 23.0, 21.0),
+    ("Chambre parentale", "bed", 20.0, 20.5),
+    ("Chambre enfant", "baby", 21.0, 21.0),
+    ("Bureau", "desktop", 22.0, 21.5),
+    ("Salle de bain", "shower", 23.5, 23.0),
+]
+
+
+async def seed_installation_equipment(installation_id: str):
+    await db.system.insert_one(System(
+        installation_id=installation_id,
+        fault_codes=[FaultCode(code="EE", label="Filtre à nettoyer", severity="warning")],
+    ).model_dump())
+    zones, devices = [], []
+    for i, (name, icon, cur, sp) in enumerate(ZONES_DEF):
+        master = i == 0
+        z = Zone(installation_id=installation_id, name=name, icon=icon,
+                 current_temp=cur, setpoint=sp, order=i, is_master=master)
+        therm = Device(installation_id=installation_id, name=f"Thermostat {name}",
+                       category="thermostat", product_id=f"SL-THERMO-{1000+i}",
+                       battery=random.randint(60, 100), signal=random.randint(70, 99),
+                       zone_id=z.id)
+        z.device_id = therm.id
+        devices.append(therm)
+        if master:
+            devices.append(Device(installation_id=installation_id, name="Gainable Principal",
+                                  category="gainable", product_id="SL-DUCT-9920", signal=98,
+                                  zone_id=z.id))
+        zones.append(z.model_dump())
+    await db.zones.insert_many(zones)
+    await db.devices.insert_many([d.model_dump() for d in devices])
+
+
+async def ensure_user(email, password, name, role):
+    u = await db.users.find_one({"email": email})
+    if u:
+        return u
+    doc = {"email": email.lower(), "password_hash": hash_password(password),
+           "name": name, "role": role, "created_at": now_iso()}
+    res = await db.users.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    return doc
+
+
+async def seed_all():
+    await db.users.create_index("email", unique=True)
+    # Super admin
+    admin_email = os.environ["ADMIN_EMAIL"]
+    admin_pw = os.environ["ADMIN_PASSWORD"]
+    existing = await db.users.find_one({"email": admin_email})
+    if not existing:
+        await ensure_user(admin_email, admin_pw, "Super Admin", "super_admin")
+    elif not verify_password(admin_pw, existing["password_hash"]):
+        await db.users.update_one({"email": admin_email},
+                                  {"$set": {"password_hash": hash_password(admin_pw)}})
+
+    # Migrate / seed demo installation once
+    if await db.installations.count_documents({}) == 0:
+        for col in ("system", "zones", "devices", "schedule"):
+            await db[col].delete_many({})
+        moderator = await ensure_user("moderateur@climazone.fr", "Demo1234!", "Modérateur", "moderator")
+        installer = await ensure_user("installateur@demo.fr", "Demo1234!", "Installateur Démo", "installer")
+        clientu = await ensure_user("client@demo.fr", "Demo1234!", "Client Démo", "client")
+        guest = await ensure_user("invite@demo.fr", "Demo1234!", "Invité Démo", "guest")
+
+        inst = Installation(name="Maison Client Démo", created_by=str(installer["_id"]),
+                            owner_id=str(clientu["_id"]), installer_id=str(installer["_id"]),
+                            installer_access=True)
+        await db.installations.insert_one(inst.model_dump())
+        await seed_installation_equipment(inst.id)
+        await db.memberships.insert_one({"installation_id": inst.id, "user_id": str(guest["_id"]), "role": "guest"})
+        logger.info("Seeded demo installation + users")
+
+
+# ----------------------------- Access control -----------------------------
+async def accessible_ids(user: dict):
+    role = user["role"]
+    if role in ("super_admin", "moderator"):
+        return None  # all
+    ids = set()
+    uid = user["id"]
+    async for inst in db.installations.find({"owner_id": uid}):
+        ids.add(inst["id"])
+    async for inst in db.installations.find({"installer_id": uid, "installer_access": True}):
+        ids.add(inst["id"])
+    async for m in db.memberships.find({"user_id": uid}):
+        ids.add(m["installation_id"])
+    return ids
+
+
+def can_write(user: dict, inst: dict) -> bool:
+    role = user["role"]
+    if role == "super_admin":
+        return True
+    if role == "installer":
+        return inst.get("installer_id") == user["id"] and inst.get("installer_access", False)
+    if role == "client":
+        return inst.get("owner_id") == user["id"]
+    return False  # moderator, guest => read-only
+
+
+async def get_installation_for(user: dict, installation_id: str, write: bool = False) -> dict:
+    inst = await db.installations.find_one({"id": installation_id}, {"_id": 0})
+    if not inst:
+        raise HTTPException(404, "Installation introuvable")
+    ids = await accessible_ids(user)
+    if ids is not None and installation_id not in ids:
+        raise HTTPException(403, "Accès refusé à cette installation")
+    if write and not can_write(user, inst):
+        raise HTTPException(403, "Droits insuffisants (lecture seule)")
+    return inst
+
+
+# ----------------------------- Auth routes -----------------------------
+@api_router.post("/auth/register")
+async def register(payload: RegisterInput, response: Response):
+    role = payload.role if payload.role in ("installer", "client") else "client"
+    if await db.users.find_one({"email": payload.email.lower()}):
+        raise HTTPException(400, "Un compte existe déjà avec cet email")
+    doc = {"email": payload.email.lower(), "password_hash": hash_password(payload.password),
+           "name": payload.name, "role": role, "created_at": now_iso()}
+    res = await db.users.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    token = create_access_token(str(res.inserted_id), doc["email"])
+    response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+    return {"user": public_user(doc), "access_token": token}
+
+
+@api_router.post("/auth/login")
+async def login(payload: LoginInput, response: Response):
+    user = await db.users.find_one({"email": payload.email.lower()})
+    if not user or not verify_password(payload.password, user["password_hash"]):
+        raise HTTPException(401, "Email ou mot de passe incorrect")
+    token = create_access_token(str(user["_id"]), user["email"])
+    response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+    return {"user": public_user(user), "access_token": token}
+
+
+@api_router.post("/auth/logout")
+async def logout(response: Response, user: dict = Depends(get_current_user)):
+    response.delete_cookie("access_token", path="/")
+    return {"ok": True}
+
+
+@api_router.get("/auth/me")
+async def me(user: dict = Depends(get_current_user)):
+    return public_user(user)
+
+
+# ----------------------------- Users (admin) -----------------------------
+@api_router.get("/users")
+async def list_users(user: dict = Depends(require_roles("super_admin", "moderator"))):
+    docs = await db.users.find({}).to_list(1000)
+    return [public_user(u) for u in docs]
+
+
+@api_router.put("/users/{user_id}")
+async def update_user_role(user_id: str, payload: RoleUpdate,
+                           user: dict = Depends(require_roles("super_admin"))):
+    if payload.role not in ROLES:
+        raise HTTPException(400, "Rôle invalide")
+    res = await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"role": payload.role}})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Utilisateur introuvable")
+    doc = await db.users.find_one({"_id": ObjectId(user_id)})
+    return public_user(doc)
+
+
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str, user: dict = Depends(require_roles("super_admin"))):
+    if user_id == user["id"]:
+        raise HTTPException(400, "Impossible de supprimer votre propre compte")
+    res = await db.users.delete_one({"_id": ObjectId(user_id)})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Utilisateur introuvable")
+    return {"ok": True}
+
+
+# ----------------------------- Installations -----------------------------
+async def enrich_installation(inst: dict) -> dict:
+    out = dict(inst)
+    owner = await db.users.find_one({"_id": ObjectId(inst["owner_id"])}) if inst.get("owner_id") else None
+    installer = await db.users.find_one({"_id": ObjectId(inst["installer_id"])}) if inst.get("installer_id") else None
+    out["owner_name"] = owner["name"] if owner else None
+    out["installer_name"] = installer["name"] if installer else None
+    return out
+
+
+@api_router.get("/installations")
+async def list_installations(user: dict = Depends(get_current_user)):
+    ids = await accessible_ids(user)
+    q = {} if ids is None else {"id": {"$in": list(ids)}}
+    docs = await db.installations.find(q, {"_id": 0}).to_list(500)
+    enriched = [await enrich_installation(d) for d in docs]
+    for e in enriched:
+        e["can_write"] = can_write(user, e)
+    return enriched
+
+
+@api_router.post("/installations")
+async def create_installation(payload: InstallationCreate,
+                              user: dict = Depends(require_roles("super_admin", "installer"))):
+    inst = Installation(name=payload.name, created_by=user["id"],
+                        installer_id=user["id"] if user["role"] == "installer" else None)
+    await db.installations.insert_one(inst.model_dump())
+    await seed_installation_equipment(inst.id)
+    out = await enrich_installation(inst.model_dump())
+    out["can_write"] = True
+    return out
+
+
+@api_router.get("/installations/{installation_id}")
+async def get_installation(installation_id: str, user: dict = Depends(get_current_user)):
+    inst = await get_installation_for(user, installation_id)
+    out = await enrich_installation(inst)
+    out["can_write"] = can_write(user, inst)
+    return out
+
+
+@api_router.put("/installations/{installation_id}")
+async def update_installation(installation_id: str, payload: InstallationUpdate,
+                              user: dict = Depends(get_current_user)):
+    inst = await db.installations.find_one({"id": installation_id}, {"_id": 0})
+    if not inst:
+        raise HTTPException(404, "Installation introuvable")
+    updates = {}
+    if payload.name is not None:
+        if not can_write(user, inst):
+            raise HTTPException(403, "Droits insuffisants")
+        updates["name"] = payload.name
+    if payload.installer_access is not None:
+        # seul le propriétaire (client) ou super admin gère l'accès installateur
+        if not (user["role"] == "super_admin" or inst.get("owner_id") == user["id"]):
+            raise HTTPException(403, "Seul le propriétaire peut gérer l'accès installateur")
+        updates["installer_access"] = payload.installer_access
+    if not updates:
+        raise HTTPException(400, "Aucune modification")
+    await db.installations.update_one({"id": installation_id}, {"$set": updates})
+    inst = await db.installations.find_one({"id": installation_id}, {"_id": 0})
+    out = await enrich_installation(inst)
+    out["can_write"] = can_write(user, inst)
+    return out
+
+
+# ----------------------------- Invitations -----------------------------
+@api_router.post("/installations/{installation_id}/invite")
+async def create_invite(installation_id: str, payload: InviteCreate,
+                        user: dict = Depends(get_current_user)):
+    inst = await db.installations.find_one({"id": installation_id}, {"_id": 0})
+    if not inst:
+        raise HTTPException(404, "Installation introuvable")
+    role = payload.role
+    if role not in ("client", "guest"):
+        raise HTTPException(400, "Rôle d'invitation invalide")
+    # installateur invite un client (devenir maître) ; propriétaire/admin invitent des invités
+    if role == "client":
+        allowed = user["role"] == "super_admin" or inst.get("installer_id") == user["id"]
+    else:
+        allowed = user["role"] == "super_admin" or inst.get("owner_id") == user["id"]
+    if not allowed:
+        raise HTTPException(403, "Vous ne pouvez pas envoyer cette invitation")
+    code = uuid.uuid4().hex[:8].upper()
+    doc = {"id": str(uuid.uuid4()), "code": code, "installation_id": installation_id,
+           "role": role, "email": (payload.email or "").lower() or None,
+           "created_by": user["id"], "status": "pending", "accepted_by": None,
+           "created_at": now_iso()}
+    await db.invitations.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/installations/{installation_id}/invitations")
+async def list_invites(installation_id: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, installation_id)
+    docs = await db.invitations.find({"installation_id": installation_id}, {"_id": 0}).to_list(200)
+    return docs
+
+
+@api_router.post("/invitations/accept")
+async def accept_invite(payload: AcceptInvite, user: dict = Depends(get_current_user)):
+    inv = await db.invitations.find_one({"code": payload.code.upper(), "status": "pending"})
+    if not inv:
+        raise HTTPException(404, "Code d'invitation invalide ou déjà utilisé")
+    installation_id = inv["installation_id"]
+    if inv["role"] == "client":
+        await db.installations.update_one({"id": installation_id}, {"$set": {"owner_id": user["id"]}})
+        if user["role"] not in ("super_admin", "moderator"):
+            await db.users.update_one({"_id": ObjectId(user["id"])}, {"$set": {"role": "client"}})
+    else:  # guest
+        exists = await db.memberships.find_one({"installation_id": installation_id, "user_id": user["id"]})
+        if not exists:
+            await db.memberships.insert_one({"installation_id": installation_id, "user_id": user["id"], "role": "guest"})
+        if user["role"] not in ("super_admin", "moderator", "client", "installer"):
+            await db.users.update_one({"_id": ObjectId(user["id"])}, {"$set": {"role": "guest"}})
+    await db.invitations.update_one({"id": inv["id"]}, {"$set": {"status": "accepted", "accepted_by": user["id"]}})
+    inst = await db.installations.find_one({"id": installation_id}, {"_id": 0})
+    return {"ok": True, "installation": await enrich_installation(inst), "role": inv["role"]}
+
+
+@api_router.get("/installations/{installation_id}/members")
+async def list_members(installation_id: str, user: dict = Depends(get_current_user)):
+    inst = await get_installation_for(user, installation_id)
+    members = []
+    if inst.get("owner_id"):
+        o = await db.users.find_one({"_id": ObjectId(inst["owner_id"])})
+        if o:
+            members.append({**public_user(o), "relation": "Propriétaire (Maître)"})
+    if inst.get("installer_id"):
+        i = await db.users.find_one({"_id": ObjectId(inst["installer_id"])})
+        if i:
+            members.append({**public_user(i), "relation": f"Installateur ({'accès actif' if inst.get('installer_access') else 'accès révoqué'})"})
+    async for m in db.memberships.find({"installation_id": installation_id}):
+        g = await db.users.find_one({"_id": ObjectId(m["user_id"])})
+        if g:
+            members.append({**public_user(g), "relation": "Invité"})
+    return members
 
 
 # ----------------------------- System -----------------------------
-@api_router.get("/system", response_model=System)
-async def get_system():
-    doc = await db.system.find_one({}, {"_id": 0})
+@api_router.get("/installations/{iid}/system")
+async def get_system(iid: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid)
+    doc = await db.system.find_one({"installation_id": iid}, {"_id": 0})
     if not doc:
-        sys = System()
-        await db.system.insert_one(sys.model_dump())
-        return sys
+        raise HTTPException(404, "Système introuvable")
     return System(**doc)
 
 
-@api_router.put("/system", response_model=System)
-async def update_system(payload: SystemUpdate):
+@api_router.put("/installations/{iid}/system")
+async def update_system(iid: str, payload: SystemUpdate, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if payload.mode is not None and payload.mode not in ("chaud", "froid"):
-        raise HTTPException(400, "mode invalide")
+        raise HTTPException(400, "Mode invalide")
     updates["updated_at"] = now_iso()
-    await db.system.update_one({}, {"$set": updates}, upsert=True)
-    doc = await db.system.find_one({}, {"_id": 0})
+    await db.system.update_one({"installation_id": iid}, {"$set": updates})
+    doc = await db.system.find_one({"installation_id": iid}, {"_id": 0})
     return System(**doc)
 
 
-@api_router.post("/system/master-power")
-async def master_power(on: bool):
-    # Arrêt/démarrage total : gainable + toutes les zones en un seul geste
-    await db.system.update_one({}, {"$set": {"power": on, "updated_at": now_iso()}}, upsert=True)
-    await db.zones.update_many({}, {"$set": {"active": on}})
-    sys_doc = await db.system.find_one({}, {"_id": 0})
-    zone_docs = await db.zones.find({}, {"_id": 0}).sort("order", 1).to_list(200)
-    return {"system": System(**sys_doc).model_dump(), "zones": [Zone(**z).model_dump() for z in zone_docs]}
+@api_router.post("/installations/{iid}/system/master-power")
+async def master_power(iid: str, on: bool, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
+    await db.system.update_one({"installation_id": iid}, {"$set": {"power": on, "updated_at": now_iso()}})
+    await db.zones.update_many({"installation_id": iid}, {"$set": {"active": on}})
+    sysd = await db.system.find_one({"installation_id": iid}, {"_id": 0})
+    zs = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
+    return {"system": System(**sysd).model_dump(), "zones": [Zone(**z).model_dump() for z in zs]}
 
 
-@api_router.post("/system/diagnostic", response_model=System)
-async def run_diagnostic():
-    # Relance un auto-diagnostic du gainable (mock) : re-scanne les codes défauts
+@api_router.post("/installations/{iid}/system/diagnostic")
+async def diagnostic(iid: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
     catalog = [
         {"code": "EE", "label": "Filtre à nettoyer", "severity": "warning"},
         {"code": "E1", "label": "Défaut sonde température ambiante", "severity": "critical"},
@@ -190,125 +576,115 @@ async def run_diagnostic():
         {"code": "E4", "label": "Protection antigel active", "severity": "info"},
         {"code": "P4", "label": "Pression circuit anormale", "severity": "warning"},
     ]
-    # sélection aléatoire de 0 à 2 défauts
     n = random.choices([0, 1, 2], weights=[0.45, 0.4, 0.15])[0]
     faults = random.sample(catalog, n)
-    await db.system.update_one({}, {"$set": {"fault_codes": faults, "updated_at": now_iso()}}, upsert=True)
-    doc = await db.system.find_one({}, {"_id": 0})
+    await db.system.update_one({"installation_id": iid}, {"$set": {"fault_codes": faults, "updated_at": now_iso()}})
+    doc = await db.system.find_one({"installation_id": iid}, {"_id": 0})
     return System(**doc)
 
 
 # ----------------------------- Zones -----------------------------
-@api_router.get("/zones", response_model=List[Zone])
-async def list_zones():
-    docs = await db.zones.find({}, {"_id": 0}).sort("order", 1).to_list(200)
+@api_router.get("/installations/{iid}/zones")
+async def list_zones(iid: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid)
+    docs = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
     return [Zone(**d) for d in docs]
 
 
-@api_router.put("/zones/{zone_id}", response_model=Zone)
-async def update_zone(zone_id: str, payload: ZoneUpdate):
+@api_router.put("/installations/{iid}/zones/{zone_id}")
+async def update_zone(iid: str, zone_id: str, payload: ZoneUpdate, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(400, "Aucune modification")
-    res = await db.zones.update_one({"id": zone_id}, {"$set": updates})
+    res = await db.zones.update_one({"installation_id": iid, "id": zone_id}, {"$set": updates})
     if res.matched_count == 0:
         raise HTTPException(404, "Zone introuvable")
-    doc = await db.zones.find_one({"id": zone_id}, {"_id": 0})
+    doc = await db.zones.find_one({"installation_id": iid, "id": zone_id}, {"_id": 0})
     return Zone(**doc)
 
 
-@api_router.post("/zones/{zone_id}/set-master", response_model=List[Zone])
-async def set_master_zone(zone_id: str):
-    # Réassigne le rôle de thermostat maître (choix du mode) à une seule zone
-    if not await db.zones.find_one({"id": zone_id}):
+@api_router.post("/installations/{iid}/zones/{zone_id}/set-master")
+async def set_master(iid: str, zone_id: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
+    if not await db.zones.find_one({"installation_id": iid, "id": zone_id}):
         raise HTTPException(404, "Zone introuvable")
-    await db.zones.update_many({}, {"$set": {"is_master": False}})
-    await db.zones.update_one({"id": zone_id}, {"$set": {"is_master": True}})
-    docs = await db.zones.find({}, {"_id": 0}).sort("order", 1).to_list(200)
+    await db.zones.update_many({"installation_id": iid}, {"$set": {"is_master": False}})
+    await db.zones.update_one({"installation_id": iid, "id": zone_id}, {"$set": {"is_master": True}})
+    docs = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
     return [Zone(**d) for d in docs]
 
 
 # ----------------------------- Devices -----------------------------
-@api_router.get("/devices", response_model=List[Device])
-async def list_devices():
-    docs = await db.devices.find({}, {"_id": 0}).to_list(200)
+@api_router.get("/installations/{iid}/devices")
+async def list_devices(iid: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid)
+    docs = await db.devices.find({"installation_id": iid}, {"_id": 0}).to_list(200)
     return [Device(**d) for d in docs]
 
 
-@api_router.post("/devices/sync", response_model=List[Device])
-async def sync_devices():
-    # Simule une re-synchronisation SmartLife (mock) : met à jour signal/batterie/online
-    docs = await db.devices.find({}, {"_id": 0}).to_list(200)
+@api_router.post("/installations/{iid}/devices/sync")
+async def sync_devices(iid: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
+    docs = await db.devices.find({"installation_id": iid}, {"_id": 0}).to_list(200)
     for d in docs:
-        updates = {"signal": random.randint(65, 99), "online": random.random() > 0.05}
+        upd = {"signal": random.randint(65, 99), "online": random.random() > 0.05}
         if d.get("category") == "thermostat":
-            updates["battery"] = max(5, (d.get("battery") or 100) - random.randint(0, 2))
-        await db.devices.update_one({"id": d["id"]}, {"$set": updates})
-    docs = await db.devices.find({}, {"_id": 0}).to_list(200)
+            upd["battery"] = max(5, (d.get("battery") or 100) - random.randint(0, 2))
+        await db.devices.update_one({"id": d["id"]}, {"$set": upd})
+    docs = await db.devices.find({"installation_id": iid}, {"_id": 0}).to_list(200)
     return [Device(**d) for d in docs]
 
 
 # ----------------------------- Simulation -----------------------------
-@api_router.post("/simulate/tick", response_model=List[Zone])
-async def simulate_tick():
-    sys_doc = await db.system.find_one({}, {"_id": 0})
-    system = System(**sys_doc) if sys_doc else System()
-    zones = await db.zones.find({}, {"_id": 0}).to_list(200)
+@api_router.post("/installations/{iid}/simulate/tick")
+async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid)
+    sysd = await db.system.find_one({"installation_id": iid}, {"_id": 0})
+    system = System(**sysd)
+    zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).to_list(200)
     for z in zones:
         cur = z["current_temp"]
         if not system.power or not z["active"] or not z["damper_open"]:
-            # dérive lente vers 19° (ambiance) quand inactif
-            target = 19.0
-            step = 0.1
+            target, step = 19.0, 0.1
         else:
-            target = z["setpoint"]
-            step = 0.4
+            target, step = z["setpoint"], 0.4
         diff = target - cur
-        if abs(diff) < step:
-            new = target
-        else:
-            new = cur + step * (1 if diff > 0 else -1)
-        # petit bruit
+        new = target if abs(diff) < step else cur + step * (1 if diff > 0 else -1)
         new = round(new + random.uniform(-0.05, 0.05), 1)
-        # registre s'ouvre/ferme selon écart consigne
         damper = z["damper_open"]
         if z["active"] and system.power:
-            reached = abs(z["setpoint"] - new) <= 0.3
-            damper = not reached
+            damper = not (abs(z["setpoint"] - new) <= 0.3)
         await db.zones.update_one({"id": z["id"]}, {"$set": {"current_temp": new, "damper_open": damper}})
-    docs = await db.zones.find({}, {"_id": 0}).sort("order", 1).to_list(200)
+    docs = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
     return [Zone(**d) for d in docs]
 
 
 # ----------------------------- Schedule -----------------------------
-@api_router.get("/schedule", response_model=List[ScheduleSlot])
-async def list_schedule(zone_id: Optional[str] = None):
-    q = {"zone_id": zone_id} if zone_id else {}
+@api_router.get("/installations/{iid}/schedule")
+async def list_schedule(iid: str, zone_id: Optional[str] = None, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid)
+    q = {"installation_id": iid}
+    if zone_id:
+        q["zone_id"] = zone_id
     docs = await db.schedule.find(q, {"_id": 0}).to_list(500)
     return [ScheduleSlot(**d) for d in docs]
 
 
-@api_router.post("/schedule", response_model=ScheduleSlot)
-async def create_slot(payload: ScheduleSlotCreate):
-    if not await db.zones.find_one({"id": payload.zone_id}):
+@api_router.post("/installations/{iid}/schedule")
+async def create_slot(iid: str, payload: ScheduleSlotCreate, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
+    if not await db.zones.find_one({"installation_id": iid, "id": payload.zone_id}):
         raise HTTPException(404, "Zone introuvable")
-    slot = ScheduleSlot(**payload.model_dump())
+    slot = ScheduleSlot(installation_id=iid, **payload.model_dump())
     await db.schedule.insert_one(slot.model_dump())
     return slot
 
 
-@api_router.put("/schedule/{slot_id}", response_model=ScheduleSlot)
-async def update_slot(slot_id: str, payload: ScheduleSlotCreate):
-    res = await db.schedule.update_one({"id": slot_id}, {"$set": payload.model_dump()})
-    if res.matched_count == 0:
-        raise HTTPException(404, "Créneau introuvable")
-    doc = await db.schedule.find_one({"id": slot_id}, {"_id": 0})
-    return ScheduleSlot(**doc)
-
-
-@api_router.delete("/schedule/{slot_id}")
-async def delete_slot(slot_id: str):
-    res = await db.schedule.delete_one({"id": slot_id})
+@api_router.delete("/installations/{iid}/schedule/{slot_id}")
+async def delete_slot(iid: str, slot_id: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
+    res = await db.schedule.delete_one({"installation_id": iid, "id": slot_id})
     if res.deleted_count == 0:
         raise HTTPException(404, "Créneau introuvable")
     return {"ok": True}
@@ -316,15 +692,15 @@ async def delete_slot(slot_id: str):
 
 @api_router.get("/")
 async def root():
-    return {"message": "SmartLife Zoning API"}
+    return {"message": "ClimaZone API"}
 
 
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -332,7 +708,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    await seed_data()
+    await seed_all()
 
 
 @app.on_event("shutdown")

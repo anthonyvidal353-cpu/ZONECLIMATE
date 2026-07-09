@@ -8,7 +8,7 @@ const BatteryIcon = ({ level }) => {
   return <BatteryLow weight="duotone" size={16} className="text-offline" />;
 };
 
-export const DevicesPanel = ({ devices, onSync, syncing }) => {
+export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
   return (
     <div className="border border-border/60 bg-[#121212] rounded-lg">
       <div className="flex items-center justify-between p-6 border-b border-border/50">
@@ -19,8 +19,8 @@ export const DevicesPanel = ({ devices, onSync, syncing }) => {
         <Button
           data-testid="sync-devices-btn"
           onClick={onSync}
-          disabled={syncing}
-          className="rounded-full bg-white text-black hover:bg-zinc-200 font-semibold"
+          disabled={syncing || !canWrite}
+          className="rounded-full bg-white text-black hover:bg-zinc-200 font-semibold disabled:opacity-40"
         >
           <ArrowsClockwise weight="bold" size={16} className={syncing ? "animate-spin mr-2" : "mr-2"} />
           {syncing ? "Synchronisation…" : "Synchroniser"}

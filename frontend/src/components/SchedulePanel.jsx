@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 
 const emptyForm = { start: "07:00", end: "09:00", setpoint: 21 };
 
-export const SchedulePanel = ({ zones, slots, onCreate, onDelete }) => {
+export const SchedulePanel = ({ zones, slots, onCreate, onDelete, canWrite = true }) => {
   const [zoneId, setZoneId] = useState(zones[0]?.id || "");
   const [day, setDay] = useState(0);
   const [open, setOpen] = useState(false);
@@ -48,12 +48,14 @@ export const SchedulePanel = ({ zones, slots, onCreate, onDelete }) => {
             </SelectContent>
           </Select>
 
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="add-slot-btn" className="rounded-full bg-white text-black hover:bg-zinc-200 font-semibold">
-                <Plus weight="bold" size={16} className="mr-1" /> Créneau
-              </Button>
-            </DialogTrigger>
+          <Dialog open={canWrite && open} onOpenChange={setOpen}>
+            {canWrite && (
+              <DialogTrigger asChild>
+                <Button data-testid="add-slot-btn" className="rounded-full bg-white text-black hover:bg-zinc-200 font-semibold">
+                  <Plus weight="bold" size={16} className="mr-1" /> Créneau
+                </Button>
+              </DialogTrigger>
+            )}
             <DialogContent className="bg-[#121212] border-border/70">
               <DialogHeader>
                 <DialogTitle className="font-display tracking-tight">
@@ -153,13 +155,15 @@ export const SchedulePanel = ({ zones, slots, onCreate, onDelete }) => {
               </div>
               <div className="flex items-center gap-4">
                 <span className="font-mono-num text-lg font-semibold text-heat">{s.setpoint.toFixed(1)}°</span>
-                <button
-                  data-testid={`delete-slot-${s.id}`}
-                  onClick={() => onDelete(s.id)}
-                  className="text-zinc-500 hover:text-offline transition-colors duration-200 active:scale-90"
-                >
-                  <Trash size={18} />
-                </button>
+                {canWrite && (
+                  <button
+                    data-testid={`delete-slot-${s.id}`}
+                    onClick={() => onDelete(s.id)}
+                    className="text-zinc-500 hover:text-offline transition-colors duration-200 active:scale-90"
+                  >
+                    <Trash size={18} />
+                  </button>
+                )}
               </div>
             </motion.div>
           ))}
