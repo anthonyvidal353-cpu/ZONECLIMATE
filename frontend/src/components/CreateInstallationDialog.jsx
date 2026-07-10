@@ -238,7 +238,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
         </div>
 
         <DialogFooter>
-          <Button data-testid="create-submit-btn" onClick={submit} disabled={busy} className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold">
+          <Button data-testid="create-submit-btn" onClick={submit} disabled={busy || pairingKey !== null} className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold">
             {busy ? "Création…" : "Créer l'installation"}
           </Button>
         </DialogFooter>
