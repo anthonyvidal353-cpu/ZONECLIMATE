@@ -67,6 +67,7 @@ export const api = {
   associatePairing: (iid, pid, data) => http.post(`/installations/${iid}/pairing/${pid}/associate`, data).then((r) => r.data),
   ignorePairing: (iid, pid) => http.delete(`/installations/${iid}/pairing/${pid}`).then((r) => r.data),
   tick: (iid) => http.post(`/installations/${iid}/simulate/tick`).then((r) => r.data),
+  getHistory: (iid, hours = 24) => http.get(`/installations/${iid}/history`, { params: { hours } }).then((r) => r.data),
   getSchedule: (iid, zoneId) => http.get(`/installations/${iid}/schedule`, { params: zoneId ? { zone_id: zoneId } : {} }).then((r) => r.data),
   createSlot: (iid, data) => http.post(`/installations/${iid}/schedule`, data).then((r) => r.data),
   deleteSlot: (iid, id) => http.delete(`/installations/${iid}/schedule/${id}`).then((r) => r.data),

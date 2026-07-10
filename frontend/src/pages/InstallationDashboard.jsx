@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { SquaresFour, ListChecks, CalendarBlank, UsersThree, ArrowLeft, Thermometer } from "@phosphor-icons/react";
+import { SquaresFour, ListChecks, CalendarBlank, UsersThree, ArrowLeft, Thermometer, ChartLine } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { AppShell } from "../components/AppShell";
 import { MasterZoneCard } from "../components/MasterZoneCard";
@@ -10,9 +10,12 @@ import { DevicesPanel } from "../components/DevicesPanel";
 import { PairingPanel } from "../components/PairingPanel";
 import { SchedulePanel } from "../components/SchedulePanel";
 import { MembersPanel } from "../components/MembersPanel";
+import { HistoryPanel } from "../components/HistoryPanel";
+import { AlertsBanner } from "../components/AlertsBanner";
 
 const TABS = [
   { key: "zones", label: "Zones", icon: SquaresFour },
+  { key: "history", label: "Historique", icon: ChartLine },
   { key: "devices", label: "Appareils", icon: ListChecks },
   { key: "schedule", label: "Planning", icon: CalendarBlank },
   { key: "members", label: "Membres", icon: UsersThree },
@@ -168,6 +171,9 @@ export default function InstallationDashboard() {
         </div>
       </div>
 
+      {/* Alertes appareils (batterie faible / hors ligne) */}
+      <AlertsBanner devices={devices} />
+
       {/* Tabs */}
       <div className="flex gap-1 border border-border/60 bg-[#FFFFFF] rounded-full p-1 w-fit mb-6 overflow-x-auto">
         {TABS.map((t) => {
@@ -198,6 +204,8 @@ export default function InstallationDashboard() {
           </div>
         </div>
       )}
+
+      {tab === "history" && <HistoryPanel iid={iid} />}
 
       {tab === "devices" && (
         <div className="space-y-6">

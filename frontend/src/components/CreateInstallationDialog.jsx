@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash, Wind, Thermometer, Crown, WifiHigh, CheckCircle, CircleNotch } from "@phosphor-icons/react";
+import { Plus, Trash, Wind, Thermometer, Crown, WifiHigh, CheckCircle, CircleNotch, HouseLine } from "@phosphor-icons/react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import api, { formatApiErrorDetail } from "../lib/api";
@@ -17,6 +17,20 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 function emptyZone(master = false, icon = "house", name = "") {
   return { key: uid(), name, icon, master, ref_code: "" };
 }
+
+// Modèles de logement : pré-remplissage rapide des zones
+const HOUSING_TEMPLATES = {
+  studio: { label: "Studio", zones: [["Salon", "couch", true]] },
+  t2: { label: "T2", zones: [["Salon", "couch", true], ["Chambre", "bed", false]] },
+  t3: { label: "T3", zones: [["Salon", "couch", true], ["Chambre 1", "bed", false], ["Chambre 2", "bed", false]] },
+  maison: {
+    label: "Maison",
+    zones: [
+      ["Salon", "couch", true], ["Cuisine", "fork", false], ["Chambre parentale", "bed", false],
+      ["Chambre enfant", "baby", false], ["Bureau", "desktop", false], ["Salle de bain", "shower", false],
+    ],
+  },
+};
 
 export const CreateInstallationDialog = ({ onCreated }) => {
   const [open, setOpen] = useState(false);
@@ -40,6 +54,13 @@ export const CreateInstallationDialog = ({ onCreated }) => {
   const addZone = () => setZones((zs) => [...zs, emptyZone(false, "house", "")]);
   const removeZone = (key) => setZones((zs) => (zs.length > 1 ? zs.filter((z) => z.key !== key) : zs));
   const setMaster = (key) => setZones((zs) => zs.map((z) => ({ ...z, master: z.key === key })));
+
+  const applyTemplate = (key) => {
+    const tpl = HOUSING_TEMPLATES[key];
+    if (!tpl) return;
+    setZones(tpl.zones.map(([nm, ic, master]) => emptyZone(master, ic, nm)));
+    toast.success(`Modèle « ${tpl.label} » appliqué`);
+  };
 
   const autoAssociate = () => {
     setGainableRef(newRef());
@@ -69,7 +90,15 @@ export const CreateInstallationDialog = ({ onCreated }) => {
 
   const submit = async () => {
     if (!name.trim()) return toast.error("Nom de l'installation requis");
-    const cleanZones = zones.filter((z) => z.name.trim());
+    // Nomme automatiquement les zones sans nom (« Zone 1 », « Zone 2 »…)
+    // pour ne jamais perdre un thermostat appairé.
+    let counter = 0;
+    const cleanZones = zones.map((z) => {
+      const nm = z.name.trim();
+      if (nm) return { ...z, name: nm };
+      counter += 1;
+      return { ...z, name: `Zone ${counter}` };
+    });
     if (cleanZones.length === 0) return toast.error("Ajoutez au moins une zone");
     if (!cleanZones.some((z) => z.master)) cleanZones[0].master = true;
 
@@ -113,6 +142,24 @@ export const CreateInstallationDialog = ({ onCreated }) => {
           <div>
             <Label className="text-xs text-zinc-600">Nom de l'installation</Label>
             <Input data-testid="installation-name-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : Maison Dupont" className="mt-1 bg-zinc-100 border-border/70" />
+          </div>
+
+          <div>
+            <Label className="text-xs text-zinc-600">Modèle de logement (optionnel)</Label>
+            <div className="flex flex-wrap gap-2 mt-1.5">
+              {Object.entries(HOUSING_TEMPLATES).map(([key, tpl]) => (
+                <button
+                  key={key}
+                  type="button"
+                  data-testid={`template-${key}`}
+                  onClick={() => applyTemplate(key)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 hover:border-heat hover:text-heat transition-colors duration-200"
+                >
+                  <HouseLine weight="duotone" size={14} /> {tpl.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-zinc-400 mt-1">Pré-remplit les zones ; vous pouvez ensuite les ajuster.</p>
           </div>
 
           <div className="flex justify-end">

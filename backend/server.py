@@ -6,6 +6,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 import os
 import json
+import math
 import asyncio
 import logging
 import random
@@ -942,7 +943,32 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
     return [Zone(**d) for d in docs]
 
 
-# ----------------------------- Schedule -----------------------------
+@api_router.get("/installations/{iid}/history")
+async def temperature_history(iid: str, hours: int = 24, user: dict = Depends(get_current_user)):
+    # Historique de température simulé (les données SmartLife sont mockées).
+    await get_installation_for(user, iid)
+    hours = max(6, min(hours, 72))
+    zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
+    now = datetime.now(timezone.utc)
+    series = []
+    for h in range(hours, -1, -1):
+        t = now - timedelta(hours=h)
+        point = {"time": t.strftime("%Hh"), "ts": t.isoformat()}
+        for z in zones:
+            base = z.get("setpoint", 21.0)
+            seed = (sum(ord(c) for c in z["id"][:6]) % 10) / 10.0
+            daynight = math.sin(((t.hour + seed) / 24.0) * 2 * math.pi) * 0.9
+            noise = random.uniform(-0.4, 0.4)
+            if h == 0:
+                val = round(z.get("current_temp", base), 1)
+            else:
+                val = round(base + daynight + noise, 1)
+            point[z["id"]] = val
+        series.append(point)
+    return {
+        "zones": [{"id": z["id"], "name": z["name"], "is_master": z.get("is_master", False)} for z in zones],
+        "series": series,
+    }
 @api_router.get("/installations/{iid}/schedule")
 async def list_schedule(iid: str, zone_id: Optional[str] = None, user: dict = Depends(get_current_user)):
     await get_installation_for(user, iid)
