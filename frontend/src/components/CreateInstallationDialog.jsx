@@ -99,7 +99,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
       <DialogTrigger asChild>
-        <Button data-testid="create-installation-btn" className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold">
+        <Button data-testid="create-installation-btn" className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold">
           <Plus weight="bold" size={16} className="mr-2" /> Nouvelle installation
         </Button>
       </DialogTrigger>
@@ -149,7 +149,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
                     data-testid="gainable-pair-btn"
                     onClick={pairGainable}
                     disabled={pairingKey === "gainable"}
-                    className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold h-10 shrink-0"
+                    className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold h-10 shrink-0"
                   >
                     {pairingKey === "gainable"
                       ? <CircleNotch size={15} className="animate-spin mr-1.5" />
@@ -210,7 +210,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
                           data-testid={`zone-pair-${i}`}
                           onClick={() => pairZone(z.key)}
                           disabled={pairingKey === z.key}
-                          className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold h-9 text-xs shrink-0"
+                          className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold h-9 text-xs shrink-0"
                         >
                           {pairingKey === z.key
                             ? <CircleNotch size={13} className="animate-spin mr-1" />
@@ -238,7 +238,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
         </div>
 
         <DialogFooter>
-          <Button data-testid="create-submit-btn" onClick={submit} disabled={busy || pairingKey !== null} className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold">
+          <Button data-testid="create-submit-btn" onClick={submit} disabled={busy || pairingKey !== null} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold">
             {busy ? "Création…" : "Créer l'installation"}
           </Button>
         </DialogFooter>

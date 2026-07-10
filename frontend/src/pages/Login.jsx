@@ -124,7 +124,7 @@ export default function Login() {
                   {[["client", "Client"], ["installer", "Installateur"]].map(([val, lbl]) => (
                     <button key={val} type="button" data-testid={`role-${val}`} onClick={() => setRole(val)}
                       className="flex-1 rounded-md border py-2 text-sm font-semibold transition-colors duration-200"
-                      style={{ borderColor: role === val ? "#FF5722" : "#E4E4E7", background: role === val ? "rgba(255,87,34,0.12)" : "transparent", color: role === val ? "#FF5722" : "#71717A" }}>
+                      style={{ borderColor: role === val ? "#7C3AED" : "#E4E4E7", background: role === val ? "rgba(124,58,237,0.12)" : "transparent", color: role === val ? "#7C3AED" : "#71717A" }}>
                       {lbl}
                     </button>
                   ))}
@@ -134,7 +134,7 @@ export default function Login() {
 
             {error && <p data-testid="auth-error" className="text-sm text-offline">{error}</p>}
 
-            <Button data-testid="submit-btn" type="submit" disabled={busy} className="w-full rounded-full bg-heat text-black hover:bg-heat-soft font-semibold h-11">
+            <Button data-testid="submit-btn" type="submit" disabled={busy} className="w-full rounded-full bg-heat text-white hover:bg-heat-soft font-semibold h-11">
               {busy ? "Veuillez patienter…" : mode === "login" ? "Se connecter" : "Créer mon compte"}
             </Button>
           </form>

@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 10 both-side tests: orange->violet swap, button contrast fixes, and installation deletion with AlertDialog confirmation. All primary user flows verified. Backend 51/52 passing (1 pre-existing test-data pollution on demo devices count, not a real bug).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/installations/{demo}/devices", "issue": "Demo installation now has 7 thermostats instead of 6 due to prior discover/associate test runs polluting demo devices. Fix: reseed demo installation on startup or reset after each test run."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "CreateInstallationDialog", "issues": ["Le bouton/pill 'Maître' sur les zones utilise un ton ambre/or (Crown icon amber-400). Cohérent avec l'icône couronne — non-bloquant mais à confirmer si l'ambre est considéré comme 'orange' à remplacer."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "(Optionnel) Reseed automatique de 'Maison Client Démo' pour restaurer devices count = 6 après tests polluants.",
+    "(Optionnel) Confirmer si le badge 'Maître' ambre doit devenir violet."
+  ],
+  "critical_code_review_comments": [
+    "Home.jsx: bien fait — stopPropagation sur le bouton corbeille, AlertDialog remplace window.confirm, deleteTarget/deleting states corrects, disabled pendant suppression.",
+    "Backend delete_installation cascade correcte (system/zones/devices/schedule/memberships/invitations/pairing supprimés en cascade)."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py (added TestPairingAndMasking.test_delete_installation_super_admin + test_delete_installation_client_forbidden_on_other)"],
+  "success_rate": {"backend": "98% (51/52)", "frontend": "100%"},
+  "test_credentials": "admin@climazone.fr / Admin1234! (super admin) — OK",
+  "seed_data_creation": "Créé et supprimé 'TEST_DEL' via le wizard super admin. Test data d'installations TEST_* préexistantes non touchées (Maison Client Démo intacte).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Tests verified: (a) login btn purple rgb(124,58,237); (b) 0 occurrences of orange color/#FF5722 in DOM on login+home+dashboard; (c) 58 elements using purple on dashboard, Chaud button en violet, Froid en bleu; (d) trash icon on installation card ouvre AlertDialog[data-testid=delete-confirm-dialog] sans naviguer; (e) delete-cancel-btn ne supprime pas; delete-confirm-btn (bg red-500 fg white) supprime bien; (f) 'Créneau' (add-slot-btn) et 'Synchroniser' (sync-devices-btn) sont maintenant bg zinc-900 + fg white -> lisibles (bug d'itération 9 corrigé).",
+  "rca of the issue": "N/A — les 3 fixes demandés (orange->violet, contraste boutons, delete avec confirmation) fonctionnent tous."
+}

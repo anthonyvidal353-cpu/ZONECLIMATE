@@ -82,7 +82,7 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
           <h2 className="font-display text-2xl font-bold tracking-tight mt-1">Ajouter un appareil</h2>
           <p className="text-xs text-zinc-500 mt-1">Mettez le gainable ou un thermostat en mode appairage, puis lancez la recherche.</p>
         </div>
-        <Button data-testid="scan-devices-btn" onClick={scan} disabled={scanning} className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold disabled:opacity-50">
+        <Button data-testid="scan-devices-btn" onClick={scan} disabled={scanning} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold disabled:opacity-50">
           {scanning ? <CircleNotch weight="bold" size={16} className="animate-spin mr-2" /> : <MagnifyingGlass weight="bold" size={16} className="mr-2" />}
           {scanning ? "Recherche…" : "Rechercher des appareils"}
         </Button>
@@ -117,7 +117,7 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm flex items-center gap-2">
                         {p.suggested_name}
-                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: isGainable ? "rgba(255,87,34,0.15)" : "rgba(59,130,246,0.15)", color: isGainable ? "#FF5722" : "#3B82F6" }}>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: isGainable ? "rgba(124,58,237,0.15)" : "rgba(59,130,246,0.15)", color: isGainable ? "#7C3AED" : "#3B82F6" }}>
                           {isGainable ? "Gainable" : "Thermostat"}
                         </span>
                       </p>
@@ -157,7 +157,7 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
                       data-testid={`pairing-associate-${p.id}`}
                       onClick={() => associate(p)}
                       disabled={busyId === p.id}
-                      className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold h-9 disabled:opacity-50 sm:ml-auto shrink-0"
+                      className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold h-9 disabled:opacity-50 sm:ml-auto shrink-0"
                     >
                       {busyId === p.id ? <CircleNotch size={15} className="animate-spin mr-1.5" /> : <Plus weight="bold" size={15} className="mr-1.5" />}
                       Associer à ZoneClimate

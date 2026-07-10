@@ -101,7 +101,7 @@ export const MembersPanel = ({ installation, onUpdated }) => {
 
           <div className="flex flex-wrap gap-3">
             {canInviteClient && !installation.owner_id && (
-              <Button data-testid="invite-client-btn" onClick={() => invite("client")} className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold">
+              <Button data-testid="invite-client-btn" onClick={() => invite("client")} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold">
                 <Crown weight="fill" size={16} className="mr-2" /> Inviter un client (maître)
               </Button>
             )}

@@ -524,6 +524,35 @@ class TestPairingAndMasking:
         assert all(p["id"] != pid for p in remaining)
 
 
+    def test_delete_installation_super_admin(self, sess):
+        # create throwaway
+        r = sess["admin"].post(f"{API}/installations", json={"name": "TEST_DEL_admin"})
+        assert r.status_code == 200
+        iid = r.json()["id"]
+        # non-admin cannot delete
+        rf = sess["guest"].delete(f"{API}/installations/{iid}")
+        assert rf.status_code in (403, 404)
+        # admin can delete
+        rd = sess["admin"].delete(f"{API}/installations/{iid}")
+        assert rd.status_code == 200
+        assert rd.json().get("ok") is True
+        # verify gone
+        listing = sess["admin"].get(f"{API}/installations").json()
+        assert not any(i["id"] == iid for i in listing)
+        # deleting again -> 404
+        rd2 = sess["admin"].delete(f"{API}/installations/{iid}")
+        assert rd2.status_code == 404
+
+    def test_delete_installation_client_forbidden_on_other(self, sess):
+        # client tries to delete demo (they own it -> actually allowed by code since owner)
+        # We test with an installer-created install that client does not own
+        r = sess["installer"].post(f"{API}/installations", json={"name": "TEST_DEL_installer_only"})
+        iid = r.json()["id"]
+        rf = sess["client"].delete(f"{API}/installations/{iid}")
+        assert rf.status_code == 403
+        # cleanup
+        sess["admin"].delete(f"{API}/installations/{iid}")
+
     def test_toggle_installer_access(self, sess, demo_installation_id):
         # owner (client) toggles
         r = sess["client"].put(f"{API}/installations/{demo_installation_id}", json={"installer_access": False})

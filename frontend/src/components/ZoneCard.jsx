@@ -6,7 +6,7 @@ import { Switch } from "./ui/switch";
 
 export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, onSetMaster, canWrite = true, index }) => {
   const heat = mode === "chaud";
-  const accent = heat ? "#FF5722" : "#3B82F6";
+  const accent = heat ? "#7C3AED" : "#3B82F6";
   const active = zone.active && systemOn;
   const writable = canWrite && active;
   const diff = zone.current_temp - zone.setpoint;

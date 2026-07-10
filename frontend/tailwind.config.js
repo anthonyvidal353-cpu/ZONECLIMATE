@@ -14,8 +14,8 @@ module.exports = {
       },
       colors: {
         heat: {
-          DEFAULT: '#FF5722',
-          soft: '#FF8A65',
+          DEFAULT: '#7C3AED',
+          soft: '#9F75FF',
         },
         cool: {
           DEFAULT: '#3B82F6',

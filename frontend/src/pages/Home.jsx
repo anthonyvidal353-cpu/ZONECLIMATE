@@ -12,6 +12,10 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "../components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 
 const ROLE_COLORS = { super_admin: "#EF4444", moderator: "#F59E0B", installer: "#3B82F6", client: "#10B981", guest: "#71717A" };
 
@@ -83,12 +87,29 @@ export default function Home() {
   const [tab, setTab] = useState("installations");
   const [code, setCode] = useState("");
   const [joinOpen, setJoinOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const canCreate = ["super_admin", "moderator", "installer"].includes(user.role);
   const isAdminView = user.role === "super_admin" || user.role === "moderator";
 
   const load = useCallback(async () => setInstallations(await api.listInstallations()), []);
   useEffect(() => { load(); }, [load]);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.deleteInstallation(deleteTarget.id);
+      toast.success("Installation supprimée");
+      setDeleteTarget(null);
+      load();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const join = async () => {
     try {
@@ -131,7 +152,7 @@ export default function Home() {
                 <Input data-testid="join-code-input" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="EX: A1B2C3D4" className="mt-1 bg-zinc-100 border-border/70 font-mono-num tracking-widest uppercase" />
               </div>
               <DialogFooter>
-                <Button data-testid="join-submit-btn" onClick={join} className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold">Rejoindre</Button>
+                <Button data-testid="join-submit-btn" onClick={join} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold">Rejoindre</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -175,16 +196,11 @@ export default function Home() {
               {user.role === "super_admin" && (
                 <button
                   data-testid={`delete-installation-${inst.id}`}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!window.confirm(`Supprimer l'installation « ${inst.name} » ?`)) return;
-                    try { await api.deleteInstallation(inst.id); toast.success("Installation supprimée"); load(); }
-                    catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail)); }
-                  }}
-                  className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full border border-border/70 bg-white/90 flex items-center justify-center text-zinc-500 hover:text-offline hover:border-offline/50 transition-colors duration-200"
-                  title="Supprimer"
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(inst); }}
+                  className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full border border-border bg-white flex items-center justify-center text-zinc-500 hover:text-white hover:bg-offline hover:border-offline transition-colors duration-200 shadow-sm"
+                  title="Supprimer l'installation"
                 >
-                  <Trash size={15} />
+                  <Trash size={15} weight="bold" />
                 </button>
               )}
               <button
@@ -213,6 +229,28 @@ export default function Home() {
       )}
 
       {isAdminView && tab === "users" && <UsersManager />}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent className="bg-white border-border" data-testid="delete-confirm-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display tracking-tight">Supprimer cette installation ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              L'installation « {deleteTarget?.name} » ainsi que ses zones, appareils, plannings et invitations seront définitivement supprimés. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="delete-cancel-btn" className="rounded-full">Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="delete-confirm-btn"
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              disabled={deleting}
+              className="rounded-full bg-offline text-white hover:bg-red-600"
+            >
+              {deleting ? "Suppression…" : "Supprimer définitivement"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

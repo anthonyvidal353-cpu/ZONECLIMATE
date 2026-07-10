@@ -22,7 +22,7 @@ const SEVERITY = {
 
 export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoint, onRename, onDiagnostic, onToggle, canWrite = true, diagnosing }) => {
   const heat = system.mode === "chaud";
-  const accent = heat ? "#FF5722" : "#3B82F6";
+  const accent = heat ? "#7C3AED" : "#3B82F6";
   const on = system.power;
   const faults = system.fault_codes || [];
 
@@ -179,7 +179,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                     data-testid="mode-chaud-btn"
                     onClick={() => onSystem({ mode: "chaud" })}
                     className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200"
-                    style={{ background: heat ? "#FF5722" : "transparent", color: heat ? "#FFFFFF" : "#71717A" }}
+                    style={{ background: heat ? "#7C3AED" : "transparent", color: heat ? "#FFFFFF" : "#71717A" }}
                   >
                     <Fire weight="fill" size={16} /> Chaud
                   </button>

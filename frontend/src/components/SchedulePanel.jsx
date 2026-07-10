@@ -98,7 +98,7 @@ export const SchedulePanel = ({ zones, slots, onCreate, onDelete, canWrite = tru
                 </div>
               </div>
               <DialogFooter>
-                <Button data-testid="save-slot-btn" onClick={submit} className="rounded-full bg-heat text-black hover:bg-heat-soft font-semibold">
+                <Button data-testid="save-slot-btn" onClick={submit} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold">
                   Enregistrer
                 </Button>
               </DialogFooter>
