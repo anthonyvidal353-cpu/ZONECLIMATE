@@ -31,6 +31,7 @@ export const QrAssociateDialog = ({ open, onOpenChange, iid, zones = [], onAssoc
   };
 
   const startScanner = async () => {
+    if (scannerRef.current) return;
     try {
       const qr = new Html5Qrcode(READER_ID);
       scannerRef.current = qr;
@@ -47,28 +48,39 @@ export const QrAssociateDialog = ({ open, onOpenChange, iid, zones = [], onAssoc
         () => { /* frame sans QR : ignorer */ },
       );
     } catch (e) {
+      scannerRef.current = null;
       setManual(true);
       toast.error("Caméra indisponible. Saisissez le code manuellement.");
     }
   };
 
+  // Démarre la caméra uniquement à l'étape scan (mode caméra).
   useEffect(() => {
     if (open && step === "scan" && !manual) {
       const t = setTimeout(startScanner, 300);
-      return () => { clearTimeout(t); stopScanner(); };
+      return () => clearTimeout(t);
     }
     return () => {};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, step, manual]);
 
+  // Réinitialise à la fermeture.
   useEffect(() => {
     if (!open) {
-      stopScanner();
       setStep("scan"); setCode(""); setManual(false); setManualCode("");
       setZoneChoice(""); setNewZoneName("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  const handleOpenChange = async (o) => {
+    if (!o) await stopScanner();
+    onOpenChange(o);
+  };
+
+  const toManual = async () => {
+    await stopScanner();
+    setManual(true);
+  };
 
   const useManual = () => {
     const c = manualCode.trim().toUpperCase().replace("ZONECLIMATE:", "");
@@ -90,15 +102,17 @@ export const QrAssociateDialog = ({ open, onOpenChange, iid, zones = [], onAssoc
     try {
       const res = await api.associateQR(iid, body);
       toast.success(`« ${res.device.name} » associé avec succès`);
-      onAssociated?.(res);
-      onOpenChange(false);
+      onAssociated?.(res.zones);
+      await handleOpenChange(false);
     } catch (e) {
       toast.error(formatApiErrorDetail(e.response?.data?.detail));
     } finally { setBusy(false); }
   };
 
+  const showReader = step === "scan" && !manual;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="bg-[#FFFFFF] border-border/70 max-w-md" data-testid="qr-associate-dialog">
         <DialogHeader>
           <DialogTitle className="font-display tracking-tight text-2xl flex items-center gap-2">
@@ -109,26 +123,24 @@ export const QrAssociateDialog = ({ open, onOpenChange, iid, zones = [], onAssoc
           </DialogDescription>
         </DialogHeader>
 
-        {step === "scan" && (
-          <div className="space-y-3">
-            {!manual ? (
-              <>
-                <div id={READER_ID} data-testid="qr-reader" className="rounded-lg overflow-hidden border border-border/60 bg-black/5 min-h-[240px] flex items-center justify-center">
-                  <span className="text-xs text-zinc-400 flex items-center gap-2"><Camera size={16} /> Activation de la caméra…</span>
-                </div>
-                <button data-testid="qr-manual-toggle" onClick={() => { stopScanner(); setManual(true); }} className="text-xs text-zinc-500 hover:text-zinc-800 flex items-center gap-1.5 mx-auto transition-colors duration-200">
-                  <Keyboard size={14} /> Saisir le code manuellement
-                </button>
-              </>
-            ) : (
-              <div className="space-y-2">
-                <Label className="text-xs text-zinc-600">Code de l'appareil (sous le QR)</Label>
-                <Input data-testid="qr-manual-input" value={manualCode} onChange={(e) => setManualCode(e.target.value)} placeholder="Ex : CZ-AB12CD34" className="bg-zinc-100 border-border/70 font-mono-num" />
-                <Button data-testid="qr-manual-submit" onClick={useManual} className="w-full rounded-full bg-heat text-white hover:bg-heat-soft font-semibold">Valider le code</Button>
-              </div>
-            )}
+        {/* Le lecteur reste TOUJOURS monté tant que le dialogue est ouvert (évite le conflit DOM html5-qrcode/React). */}
+        <div className={step === "scan" ? "space-y-3" : "hidden"}>
+          <div id={READER_ID} data-testid="qr-reader" className={`rounded-lg overflow-hidden border border-border/60 bg-black/5 min-h-[240px] items-center justify-center ${showReader ? "flex" : "hidden"}`}>
+            <span className="text-xs text-zinc-400 flex items-center gap-2"><Camera size={16} /> Activation de la caméra…</span>
           </div>
-        )}
+
+          {!manual ? (
+            <button data-testid="qr-manual-toggle" onClick={toManual} className="text-xs text-zinc-500 hover:text-zinc-800 flex items-center gap-1.5 mx-auto transition-colors duration-200">
+              <Keyboard size={14} /> Saisir le code manuellement
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <Label className="text-xs text-zinc-600">Code de l'appareil (sous le QR)</Label>
+              <Input data-testid="qr-manual-input" value={manualCode} onChange={(e) => setManualCode(e.target.value)} placeholder="Ex : CZ-AB12CD34" className="bg-zinc-100 border-border/70 font-mono-num" />
+              <Button data-testid="qr-manual-submit" onClick={useManual} className="w-full rounded-full bg-heat text-white hover:bg-heat-soft font-semibold">Valider le code</Button>
+            </div>
+          )}
+        </div>
 
         {step === "zone" && (
           <div className="space-y-4">

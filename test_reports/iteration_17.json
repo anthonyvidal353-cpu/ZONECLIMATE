@@ -1,0 +1,26 @@
+{
+  "summary": "RETEST frontend QR association flow after fix (iteration 16 had 'removeChild' + 'zones.find is not a function'). All 3 flows now pass with ZERO console errors and ZERO critical runtime errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_17.json"],
+  "action_items": [
+    "Cleanup: delete TEST installation 'TEST_QR_RETEST' (id 29c57a30-2191-40bd-8df0-b9fb4528949a) and any associated test devices (tuya_id qrtest-t-1 / qrtest-g-1) as noted in the review request. Testing agent could not clean these via UI without side-effects."
+  ],
+  "critical_code_review_comments": [
+    "QrAssociateDialog: fix is clean — the qr-reader div stays mounted (hidden via CSS) while dialog is open, preventing html5-qrcode's manual DOM removeChild from conflicting with React reconciliation.",
+    "onAssociated({res.zones}) correctly passes zones array (fixes 'zones.find is not a function' upstream in InstallationDashboard.setZones and PairingPanel onAssociated).",
+    "stopScanner is awaited before switching to manual, so no orphaned MediaStream."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "installateur@demo.fr / Demo1234! (used). Admin creds not needed for QR flow.",
+  "seed_data_creation": "Created installation 'TEST_QR_RETEST' (id 29c57a30-2191-40bd-8df0-b9fb4528949a) with zones Salon (master) + Chambre. Associated CZ-QRTEST01 to existing zone (Salon) and CZ-QRTEST02 to a new zone 'TEST_QR_NouvelleZone' (backend rattaches gainable to master zone).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "QR association flow fully validated. Flows tested: (1) CZ-QRTEST01 manual entry → existing zone Salon → success, dialog closes. (2) CZ-QRTEST02 → new zone 'TEST_QR_NouvelleZone' → success, dialog closes (backend rattaches gainable to master). (3) 4x open/close cycles alternating manual/camera → zero errors. Console captured 0 errors, 0 warnings across the entire session.",
+  "rca of the issue": "Previous 'removeChild' error was caused by html5-qrcode manipulating a DOM node that React had already unmounted (React tried to remove a child that html5-qrcode had detached). Fix: keep the #qr-reader-region div always mounted while dialog is open (toggle via CSS 'hidden' class instead of conditional render). Previous 'zones.find is not a function' was caused by onAssociated receiving the full API response object; fix passes res.zones (array) explicitly. Both issues are now resolved."
+}
