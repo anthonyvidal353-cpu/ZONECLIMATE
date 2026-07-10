@@ -41,6 +41,14 @@ export const api = {
   downloadBackup: () => http.get("/admin/backup").then((r) => r.data),
   saveBackupNow: () => http.post("/admin/backup/save").then((r) => r.data),
   restoreBackup: (data) => http.post("/admin/restore", data).then((r) => r.data),
+  // Projets Tuya (admin)
+  tuyaRegions: () => http.get("/admin/tuya/regions").then((r) => r.data),
+  listTuyaProjects: () => http.get("/admin/tuya/projects").then((r) => r.data),
+  createTuyaProject: (data) => http.post("/admin/tuya/projects", data).then((r) => r.data),
+  updateTuyaProject: (id, data) => http.put(`/admin/tuya/projects/${id}`, data).then((r) => r.data),
+  deleteTuyaProject: (id) => http.delete(`/admin/tuya/projects/${id}`).then((r) => r.data),
+  activateTuyaProject: (id) => http.post(`/admin/tuya/projects/${id}/activate`).then((r) => r.data),
+  testTuyaProject: (id) => http.post(`/admin/tuya/projects/${id}/test`).then((r) => r.data),
   // installations
   listInstallations: () => http.get("/installations").then((r) => r.data),
   createInstallation: (payload) => http.post("/installations", payload).then((r) => r.data),

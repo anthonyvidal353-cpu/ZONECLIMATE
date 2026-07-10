@@ -22,6 +22,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 
+import tuya
+
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
@@ -42,7 +44,7 @@ DATA_DIR = ROOT_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 BACKUP_FILE = DATA_DIR / "backup.json"
 BACKUP_COLLECTIONS = ["users", "installations", "memberships", "system",
-                      "zones", "devices", "pairing", "schedule", "invitations"]
+                      "zones", "devices", "pairing", "schedule", "invitations", "tuya_projects"]
 BACKUP_INTERVAL_SEC = 45
 
 
@@ -559,6 +561,150 @@ async def upload_restore(data: dict, user: dict = Depends(require_roles("super_a
     await write_backup_file()
     counts = {c: await db[c].count_documents({}) for c in BACKUP_COLLECTIONS}
     return {"ok": True, "restored_at": now_iso(), "counts": counts}
+
+
+# ----------------------------- Projets Tuya (Admin) -----------------------------
+class TuyaProjectCreate(BaseModel):
+    name: str
+    region: str = "eu"
+    access_id: str
+    access_secret: str
+    project_code: Optional[str] = None
+
+
+class TuyaProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    region: Optional[str] = None
+    access_id: Optional[str] = None
+    access_secret: Optional[str] = None
+    project_code: Optional[str] = None
+
+
+def public_tuya_project(p: dict) -> dict:
+    # Ne JAMAIS renvoyer le secret. L'access_id est masqué.
+    return {
+        "id": p["id"],
+        "name": p["name"],
+        "region": p["region"],
+        "region_label": tuya.TUYA_REGIONS.get(p["region"], ("Inconnu", ""))[0],
+        "endpoint": p.get("endpoint"),
+        "access_id_masked": tuya.mask(p.get("access_id", "")),
+        "project_code": p.get("project_code"),
+        "active": p.get("active", False),
+        "created_at": p.get("created_at"),
+        "renew_at": p.get("renew_at"),
+        "last_test_at": p.get("last_test_at"),
+        "last_test_ok": p.get("last_test_ok"),
+    }
+
+
+@api_router.get("/admin/tuya/regions")
+async def tuya_regions(user: dict = Depends(require_roles("super_admin"))):
+    return [{"code": k, "label": v[0], "endpoint": v[1]} for k, v in tuya.TUYA_REGIONS.items()]
+
+
+@api_router.get("/admin/tuya/projects")
+async def list_tuya_projects(user: dict = Depends(require_roles("super_admin"))):
+    docs = await db.tuya_projects.find({}, {"_id": 0}).sort("created_at", 1).to_list(100)
+    return [public_tuya_project(p) for p in docs]
+
+
+@api_router.post("/admin/tuya/projects")
+async def create_tuya_project(payload: TuyaProjectCreate, user: dict = Depends(require_roles("super_admin"))):
+    if payload.region not in tuya.TUYA_REGIONS:
+        raise HTTPException(400, "Région Tuya invalide")
+    count = await db.tuya_projects.count_documents({})
+    now = datetime.now(timezone.utc)
+    doc = {
+        "id": str(uuid.uuid4()),
+        "name": payload.name.strip(),
+        "region": payload.region,
+        "endpoint": tuya.region_endpoint(payload.region),
+        "access_id": payload.access_id.strip(),
+        "access_secret_enc": tuya.encrypt_secret(payload.access_secret.strip()),
+        "project_code": (payload.project_code or "").strip() or None,
+        "active": count == 0,  # le 1er projet devient actif
+        "created_at": now.isoformat(),
+        "renew_at": (now + timedelta(days=180)).isoformat(),
+        "last_test_at": None,
+        "last_test_ok": None,
+    }
+    await db.tuya_projects.insert_one(doc)
+    await write_backup_file()
+    return public_tuya_project(doc)
+
+
+@api_router.put("/admin/tuya/projects/{pid}")
+async def update_tuya_project(pid: str, payload: TuyaProjectUpdate, user: dict = Depends(require_roles("super_admin"))):
+    p = await db.tuya_projects.find_one({"id": pid})
+    if not p:
+        raise HTTPException(404, "Projet Tuya introuvable")
+    updates = {}
+    if payload.name is not None:
+        updates["name"] = payload.name.strip()
+    if payload.region is not None:
+        if payload.region not in tuya.TUYA_REGIONS:
+            raise HTTPException(400, "Région Tuya invalide")
+        updates["region"] = payload.region
+        updates["endpoint"] = tuya.region_endpoint(payload.region)
+    if payload.access_id is not None:
+        updates["access_id"] = payload.access_id.strip()
+    if payload.access_secret:
+        updates["access_secret_enc"] = tuya.encrypt_secret(payload.access_secret.strip())
+    if payload.project_code is not None:
+        updates["project_code"] = payload.project_code.strip() or None
+    if updates:
+        await db.tuya_projects.update_one({"id": pid}, {"$set": updates})
+        await write_backup_file()
+    doc = await db.tuya_projects.find_one({"id": pid}, {"_id": 0})
+    return public_tuya_project(doc)
+
+
+@api_router.delete("/admin/tuya/projects/{pid}")
+async def delete_tuya_project(pid: str, user: dict = Depends(require_roles("super_admin"))):
+    p = await db.tuya_projects.find_one({"id": pid})
+    if not p:
+        raise HTTPException(404, "Projet Tuya introuvable")
+    await db.tuya_projects.delete_one({"id": pid})
+    # Si on supprime l'actif, activer le plus récent restant
+    if p.get("active"):
+        nxt = await db.tuya_projects.find_one({}, sort=[("created_at", -1)])
+        if nxt:
+            await db.tuya_projects.update_one({"id": nxt["id"]}, {"$set": {"active": True}})
+    await write_backup_file()
+    return {"ok": True}
+
+
+@api_router.post("/admin/tuya/projects/{pid}/activate")
+async def activate_tuya_project(pid: str, user: dict = Depends(require_roles("super_admin"))):
+    p = await db.tuya_projects.find_one({"id": pid})
+    if not p:
+        raise HTTPException(404, "Projet Tuya introuvable")
+    await db.tuya_projects.update_many({}, {"$set": {"active": False}})
+    await db.tuya_projects.update_one({"id": pid}, {"$set": {"active": True}})
+    await write_backup_file()
+    return {"ok": True}
+
+
+@api_router.post("/admin/tuya/projects/{pid}/test")
+async def test_tuya_project(pid: str, user: dict = Depends(require_roles("super_admin"))):
+    p = await db.tuya_projects.find_one({"id": pid})
+    if not p:
+        raise HTTPException(404, "Projet Tuya introuvable")
+    client = tuya.TuyaClient(p["endpoint"], p["access_id"], tuya.decrypt_secret(p["access_secret_enc"]))
+    result = {"ok": False}
+    try:
+        token = await client.connect()
+        devices = await client.list_devices(page_size=5)
+        n = len(devices.get("list", devices)) if isinstance(devices, dict) else len(devices)
+        result = {"ok": True, "expire_time": token.get("expire_time"), "device_count": n}
+    except tuya.TuyaError as e:
+        result = {"ok": False, "error": str(e)}
+    except Exception as e:  # noqa: BLE001
+        result = {"ok": False, "error": f"Connexion impossible: {type(e).__name__}"}
+    await db.tuya_projects.update_one(
+        {"id": pid}, {"$set": {"last_test_at": now_iso(), "last_test_ok": result["ok"]}})
+    return result
 
 
 # ----------------------------- Installations -----------------------------
