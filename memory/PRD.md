@@ -20,16 +20,20 @@ sur une base de données simulées (mock) puis API Tuya réelle plus tard.
 ## Implémenté (dates)
 - 2026-07-09 : MVP zoning (thermostat maître = zone du gainable, mode chaud/froid, ventilation, arrêt total + arrêt zone, codes défauts + diagnostic, renommage zones, maître réassignable, appareils SmartLife mock, planning horaire par zone). Tests 100%.
 - 2026-07-09 : Auth JWT + 5 rôles + multi-installations + invitations par code in-app + gestion utilisateurs (admin) + membres/accès installateur. Tests backend 31/31, frontend ~95% (2 correctifs LOW appliqués).
+- 2026-07-09 : Rebranding "ZoneClimate", masquage Tuya/SmartLife (réfs CZ- + QR codes), thème clair + accents violet (#7C3AED), confirmation suppression installation, correctifs contraste.
+- 2026-07-10 : Démarrage NON DESTRUCTIF + sauvegarde/restauration. Sauvegarde JSON auto (périodique 45s + au démarrage + à l'arrêt) dans /app/backend/data/backup.json ; restauration auto si DB vide au démarrage. Onglet Admin « Sauvegarde » (télécharger / sauvegarder maintenant / restaurer un fichier). Endpoints /api/admin/backup, /api/admin/backup/save, /api/admin/restore (super_admin). Tests backend 16/16 (iteration_11).
+- 2026-07-10 : BUG FIX B — la découverte d'appareils (appairage simulé) génère désormais le nombre EXACT d'appareils choisi par l'utilisateur (param count 1..10 + category thermostat/gainable) au lieu d'un aléatoire 1-3. UI : sélecteur type + nombre dans PairingPanel.
 
 ## Comptes de démo
 Voir /app/memory/test_credentials.md (admin/moderateur/installateur/client/invite).
 
 ## Backlog / prochaines étapes
-- P0 : Brancher l'API Tuya Cloud réelle (Access ID/Secret) à la place du mock (produits, températures, vrais codes défauts DP).
+- P1 : Brancher l'API Tuya Cloud réelle (Access ID/Secret) à la place du mock (produits, températures, vrais codes défauts DP).
 - P1 : Application automatique des plages horaires (scheduler backend) sur les consignes.
-- P1 : Confirmation avant l'arrêt total ; bannière d'alerte pour défauts critiques.
+- P2 : Scanner QR code caméra pour l'installateur ; modèles de logement (T2/T3/Maison) dans l'assistant de création.
 - P2 : Édition des créneaux ; historique/graphiques de température (recharts) ; alertes batterie/hors-ligne.
-- P2 : Découpage server.py en modules (auth/installations/climate/invitations) ; migration lifespan FastAPI ; brute-force lockout login.
+- P2 : Découpage server.py en modules (auth/installations/climate/invitations/backup) ; migration lifespan FastAPI ; brute-force lockout login.
+- P3 (tech debt, remonté par testing agent) : restore_backup sans transaction (risque de wipe partiel si crash en cours) — envisager transaction Mongo ou DB fantôme + swap.
 
 ## Notes
 - TOUTES LES DONNÉES SMARTLIFE/TUYA (appareils, températures, codes défauts) SONT SIMULÉES (mock).
