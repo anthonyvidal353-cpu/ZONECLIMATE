@@ -243,7 +243,7 @@ export default function Home() {
         <div className="flex gap-1 border border-border/60 bg-[#FFFFFF] rounded-full p-1 w-fit mb-6">
           {[["installations", "Installations", House], ["users", "Utilisateurs", Users],
             ...(["super_admin", "moderator"].includes(user.role) ? [["catalog", "Catalogue QR", QrCode]] : []),
-            ...(user.role === "super_admin" ? [["backup", "Sauvegarde", ShieldCheck], ["tuya", "API Tuya", PlugsConnected]] : [])].map(([k, l, Icon]) => (
+            ...(user.role === "super_admin" ? [["backup", "Sauvegarde", ShieldCheck], ["tuya", "Paramètres", PlugsConnected]] : [])].map(([k, l, Icon]) => (
             <button key={k} data-testid={`admintab-${k}`} onClick={() => setTab(k)}
               className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors duration-200"
               style={{ background: tab === k ? "#3F3F46" : "transparent", color: tab === k ? "#FFFFFF" : "#71717A" }}>

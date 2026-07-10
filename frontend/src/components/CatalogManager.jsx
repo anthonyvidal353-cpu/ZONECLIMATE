@@ -21,9 +21,11 @@ export function CatalogManager() {
   const discover = async () => {
     setScanning(true);
     try {
-      const list = await api.catalogDiscover();
+      const res = await api.catalogDiscover();
+      const list = res.items || res;
       setItems(list);
-      toast.success(`${list.length} appareil(s) dans le catalogue`);
+      (res.errors || []).forEach((e) => toast.error(`Projet « ${e.project} » : ${e.error}`));
+      toast.success(`${list.length} appareil(s) au catalogue (tous projets)`);
     } catch (e) {
       toast.error(formatApiErrorDetail(e.response?.data?.detail));
     } finally { setScanning(false); }
@@ -95,6 +97,9 @@ export function CatalogManager() {
                 <span className="truncate max-w-[130px]">{it.name}</span>
               </div>
               <span className="font-mono-num text-[11px] text-zinc-500 mt-1">{it.code}</span>
+              {it.project_name && (
+                <span className="mt-1 text-[10px] text-zinc-400 truncate max-w-[130px]">{it.project_name}</span>
+              )}
               {it.assigned && (
                 <span className="mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-online/15 text-online flex items-center gap-1">
                   <CheckCircle weight="fill" size={11} /> Associé

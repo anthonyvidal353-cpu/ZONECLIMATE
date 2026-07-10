@@ -715,6 +715,7 @@ def public_catalog(c: dict) -> dict:
         "category": c.get("category"),
         "online": c.get("online", True),
         "assigned": c.get("assigned", False),
+        "project_name": c.get("project_name"),
         "qr": f"ZONECLIMATE:{c['code']}",
         "created_at": c.get("created_at"),
     }
@@ -730,38 +731,39 @@ async def _mark_catalog_assignment():
 
 @api_router.post("/admin/catalog/discover")
 async def catalog_discover(user: dict = Depends(require_roles("super_admin", "moderator"))):
-    client = await get_active_tuya_client()
-    if client is None:
-        raise HTTPException(400, "Aucun projet Tuya actif. Configurez-en un d'abord.")
-    proj = await db.tuya_projects.find_one({"active": True})
-    try:
-        tuya_devices = await fetch_all_tuya_devices(client)
-    except tuya.TuyaError as e:
-        raise HTTPException(502, f"Erreur cloud : {e}")
-    except Exception:  # noqa: BLE001
-        raise HTTPException(502, "Connexion au cloud impossible. Vérifiez le projet et la liste blanche d'IP.")
-    for td in tuya_devices:
-        tid = td.get("id")
-        if not tid:
+    # Agrège les appareils de TOUS les projets Tuya (capacités cumulées).
+    projects = await all_tuya_projects_with_clients()
+    if not projects:
+        raise HTTPException(400, "Aucun projet Tuya configuré. Ajoutez-en un dans Paramètres.")
+    errors = []
+    for p, client in projects:
+        try:
+            tuya_devices = await fetch_all_tuya_devices(client)
+        except tuya.TuyaError as e:
+            errors.append({"project": p["name"], "error": str(e)})
             continue
-        cat = map_tuya_category(td.get("category"))
-        online = td.get("is_online", td.get("online", True))
-        existing = await db.catalog.find_one({"tuya_id": tid})
-        if existing:
-            await db.catalog.update_one({"tuya_id": tid},
-                                        {"$set": {"name": td.get("name") or existing.get("name"),
-                                                  "category": cat, "online": online}})
-        else:
-            await db.catalog.insert_one({
-                "id": str(uuid.uuid4()), "code": gen_ref(), "tuya_id": tid,
-                "name": td.get("name") or ("Gainable" if cat == "gainable" else "Thermostat"),
-                "category": cat, "online": online,
-                "project_id": proj["id"] if proj else None, "created_at": now_iso(),
-            })
+        except Exception:  # noqa: BLE001
+            errors.append({"project": p["name"], "error": "connexion impossible (identifiants / liste blanche IP)"})
+            continue
+        for td in tuya_devices:
+            tid = td.get("id")
+            if not tid:
+                continue
+            cat = map_tuya_category(td.get("category"))
+            online = td.get("is_online", td.get("online", True))
+            fields = {"name": td.get("name") or ("Gainable" if cat == "gainable" else "Thermostat"),
+                      "category": cat, "online": online,
+                      "project_id": p["id"], "project_name": p["name"]}
+            existing = await db.catalog.find_one({"tuya_id": tid})
+            if existing:
+                await db.catalog.update_one({"tuya_id": tid}, {"$set": fields})
+            else:
+                await db.catalog.insert_one({"id": str(uuid.uuid4()), "code": gen_ref(),
+                                             "tuya_id": tid, "created_at": now_iso(), **fields})
     await write_backup_file()
     used = await _mark_catalog_assignment()
     docs = await db.catalog.find({}, {"_id": 0}).sort("created_at", 1).to_list(500)
-    return [public_catalog({**c, "assigned": c["tuya_id"] in used}) for c in docs]
+    return {"items": [public_catalog({**c, "assigned": c["tuya_id"] in used}) for c in docs], "errors": errors}
 
 
 @api_router.get("/admin/catalog")
@@ -1064,6 +1066,11 @@ async def get_active_tuya_client():
     return tuya.TuyaClient(p["endpoint"], p["access_id"], tuya.decrypt_secret(p["access_secret_enc"]))
 
 
+async def all_tuya_projects_with_clients():
+    projs = await db.tuya_projects.find({}).to_list(100)
+    return [(p, tuya.TuyaClient(p["endpoint"], p["access_id"], tuya.decrypt_secret(p["access_secret_enc"]))) for p in projs]
+
+
 async def fetch_all_tuya_devices(client):
     await client.connect()
     devices = []
@@ -1081,24 +1088,26 @@ async def fetch_all_tuya_devices(client):
 
 
 async def discover_tuya_devices(iid: str):
-    client = await get_active_tuya_client()
-    if client is None:
-        raise HTTPException(400, "Aucun projet Tuya actif. Configurez-en un dans l'espace Super Admin.")
-    try:
-        tuya_devices = await fetch_all_tuya_devices(client)
-    except tuya.TuyaError as e:
-        raise HTTPException(502, f"Erreur cloud : {e}")
-    except Exception:  # noqa: BLE001
-        raise HTTPException(502, "Connexion au cloud impossible. Vérifiez le projet et la liste blanche d'IP.")
+    # Agrège les appareils de TOUS les projets Tuya configurés (capacités cumulées).
+    projects = await all_tuya_projects_with_clients()
+    if not projects:
+        raise HTTPException(400, "Aucun projet Tuya configuré. Ajoutez-en un dans Paramètres.")
+    tuya_devices = []
+    errors = []
+    for p, client in projects:
+        try:
+            tuya_devices.extend(await fetch_all_tuya_devices(client))
+        except Exception:  # noqa: BLE001
+            errors.append(p["name"])
+    if not tuya_devices and errors:
+        raise HTTPException(502, f"Connexion impossible aux projets : {', '.join(errors)}. Vérifiez les identifiants et la liste blanche d'IP.")
 
-    # IDs déjà connus (associés ou en attente) pour éviter les doublons
     known = set()
     async for d in db.devices.find({"tuya_id": {"$ne": None}}, {"tuya_id": 1}):
         known.add(d["tuya_id"])
     async for d in db.pairing.find({"installation_id": iid, "status": "discovered", "tuya_id": {"$ne": None}}, {"tuya_id": 1}):
         known.add(d["tuya_id"])
 
-    added = 0
     for td in tuya_devices:
         tid = td.get("id")
         if not tid or tid in known:
@@ -1113,7 +1122,6 @@ async def discover_tuya_devices(iid: str):
         )
         await db.pairing.insert_one(p.model_dump())
         known.add(tid)
-        added += 1
     docs = await db.pairing.find({"installation_id": iid, "status": "discovered"}).to_list(50)
     return [public_pairing(d) for d in docs]
 

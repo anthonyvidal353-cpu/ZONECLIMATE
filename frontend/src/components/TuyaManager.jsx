@@ -113,7 +113,7 @@ export function TuyaManager() {
           </h2>
           <p className="text-sm text-zinc-500 mt-1 flex items-center gap-1.5">
             <LockKey size={14} className="text-online" />
-            Vos identifiants sont chiffrés sur le serveur et jamais renvoyés en clair. Gardez plusieurs projets pour limiter les pertes.
+            Ajoutez plusieurs projets : ZoneClimate les interroge TOUS ensemble (les capacités s'additionnent). Identifiants chiffrés, jamais renvoyés en clair.
           </p>
         </div>
         <Button data-testid="tuya-add-btn" onClick={openNew} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold shrink-0">
