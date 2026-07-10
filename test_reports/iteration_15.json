@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 15 — Validated the fix for the fake-code bug: creating an installation now defines only zones (0 devices), master flag is respected, and real device association is performed in the Devices tab (PairingPanel real/sim modes). Both backend and frontend behavior match spec.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_create_installation_no_fake.py",
+    "/app/test_reports/pytest/iter15_create.xml"
+  ],
+  "action_items": [
+    "The demo installation 'Maison Client Démo' is currently ABSENT from the DB — seed_all() only re-creates it when installations count == 0, and an existing 'Test' installation prevents re-seeding. Not a regression of the create-fix, but retrocompat cannot be validated on this env. If desired, add an idempotent demo seed or manually re-create it."
+  ],
+  "critical_code_review_comments": [
+    "server.py seed_installation_equipment correctly branches: when zones_spec provided, no devices are inserted (insert_many gated by `if devices`).",
+    "InstallationCreate.zones accepts ZoneSpec with Optional thermostat — thermostat is now ignored server-side even if sent (backward compatible with old payloads).",
+    "Frontend CreateInstallationDialog performs auto-naming via `Zone N` counter that skips already-used names (good). No random ref codes, QR, or pairing button anywhere in the dialog.",
+    "PairingPanel exposes pairing-mode-real / pairing-mode-sim with correct visibility toggles for category/count fields.",
+    "Minor: server.py L347 does not auto-name empty zone names server-side; relies entirely on frontend. If another client (curl/mobile) posts empty names, zones will be created with empty names. Consider server-side fallback `name or f'Zone {i+1}'`."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_create_installation_no_fake.py (new pytest file, 5 tests: 4 passed / 1 skipped)"
+  ],
+  "success_rate": {"backend": "100% (4/4 executed, 1 skipped)", "frontend": "100%"},
+  "test_credentials": "admin@climazone.fr / Admin1234! ; installateur@demo.fr / Demo1234!",
+  "seed_data_creation": "Created TEST_NoFake_A, TEST_NoFake_B, TEST_Discover_Target via installer + TEST_UI_Frontend via UI. All cleaned up (DELETE) after tests. Left 'Test', 'ecozone' untouched (though 'ecozone' was not present in list). 'Projet Tuya' active project untouched. Tuya discovery returned 1 real device (Thermostat Entrée) as expected.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Env DB currently contains only 'Test' installation (demo 'Maison Client Démo' has been removed in a prior iteration). Active Tuya project reachable; real discovery returns 1 device. All create-installation testids: create-installation-btn, installation-name-input, template-{studio|t2|t3|maison}, zone-name-{i}, zone-icon-{i}, zone-master-{i}, zone-remove-{i}, add-zone-btn, create-submit-btn. PairingPanel testids: pairing-mode-real, pairing-mode-sim, scan-category-select, scan-count-input, scan-devices-btn.",
+  "rca of the issue": "N/A — this iteration validates a fix already applied by main agent. Fix is correct: seed_installation_equipment now conditionally inserts devices (line 385: `if devices:`); when zones_spec is given the devices list stays empty."
+}

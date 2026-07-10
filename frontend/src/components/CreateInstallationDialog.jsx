@@ -1,21 +1,19 @@
 import { useState } from "react";
-import { Plus, Trash, Wind, Thermometer, Crown, WifiHigh, CheckCircle, CircleNotch, HouseLine } from "@phosphor-icons/react";
-import { QRCodeSVG } from "qrcode.react";
+import { Plus, Trash, Thermometer, Crown, HouseLine, Info } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import api, { formatApiErrorDetail } from "../lib/api";
 import { zoneIcons, PIECE_LABELS } from "../lib/icons";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 const ICON_OPTIONS = Object.keys(zoneIcons);
-const newRef = () => "CZ-" + Math.random().toString(16).slice(2, 10).toUpperCase();
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function emptyZone(master = false, icon = "house", name = "") {
-  return { key: uid(), name, icon, master, ref_code: "" };
+  return { key: uid(), name, icon, master };
 }
 
 // Modèles de logement : pré-remplissage rapide des zones
@@ -36,17 +34,13 @@ export const CreateInstallationDialog = ({ onCreated }) => {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
-  const [gainableName, setGainableName] = useState("Gainable Principal");
-  const [gainableRef, setGainableRef] = useState("");
   const [zones, setZones] = useState([
     emptyZone(true, "couch", "Salon"),
     emptyZone(false, "bed", "Chambre"),
   ]);
-  const [pairingKey, setPairingKey] = useState(null); // "gainable" | zone.key en cours d'appairage
 
   const reset = () => {
-    setName(""); setGainableName("Gainable Principal"); setGainableRef("");
-    setPairingKey(null);
+    setName("");
     setZones([emptyZone(true, "couch", "Salon"), emptyZone(false, "bed", "Chambre")]);
   };
 
@@ -62,36 +56,9 @@ export const CreateInstallationDialog = ({ onCreated }) => {
     toast.success(`Modèle « ${tpl.label} » appliqué`);
   };
 
-  const autoAssociate = () => {
-    setGainableRef(newRef());
-    setZones((zs) => zs.map((z) => ({ ...z, ref_code: newRef() })));
-    toast.success("Références (QR) générées");
-  };
-
-  const pairGainable = () => {
-    setPairingKey("gainable");
-    toast.message("ZoneClimate interroge le cloud…");
-    setTimeout(() => {
-      setGainableRef(newRef());
-      setPairingKey(null);
-      toast.success("Gainable appairé");
-    }, 700);
-  };
-
-  const pairZone = (zoneKey) => {
-    setPairingKey(zoneKey);
-    toast.message("ZoneClimate interroge le cloud…");
-    setTimeout(() => {
-      setZones((zs) => zs.map((z) => (z.key === zoneKey ? { ...z, ref_code: newRef() } : z)));
-      setPairingKey(null);
-      toast.success("Thermostat appairé");
-    }, 700);
-  };
-
   const submit = async () => {
     if (!name.trim()) return toast.error("Nom de l'installation requis");
-    // Nomme automatiquement les zones sans nom (« Zone 1 », « Zone 2 »…),
-    // en évitant toute collision avec les noms déjà saisis.
+    // Nomme automatiquement les zones sans nom (« Zone 1 », « Zone 2 »…).
     const used = new Set(zones.map((z) => z.name.trim()).filter(Boolean));
     let counter = 0;
     const nextAutoName = () => {
@@ -100,27 +67,18 @@ export const CreateInstallationDialog = ({ onCreated }) => {
       used.add(candidate);
       return candidate;
     };
-    const cleanZones = zones.map((z) => {
-      const nm = z.name.trim();
-      return { ...z, name: nm || nextAutoName() };
-    });
+    const cleanZones = zones.map((z) => ({ ...z, name: z.name.trim() || nextAutoName() }));
     if (cleanZones.length === 0) return toast.error("Ajoutez au moins une zone");
     if (!cleanZones.some((z) => z.master)) cleanZones[0].master = true;
 
     const payload = {
       name: name.trim(),
-      gainable: { name: gainableName.trim() || "Gainable Principal", ref_code: gainableRef.trim() || newRef() },
-      zones: cleanZones.map((z) => ({
-        name: z.name.trim(),
-        icon: z.icon,
-        master: z.master,
-        thermostat: { name: `Thermostat ${z.name.trim()}`, ref_code: z.ref_code.trim() || newRef() },
-      })),
+      zones: cleanZones.map((z) => ({ name: z.name.trim(), icon: z.icon, master: z.master })),
     };
     setBusy(true);
     try {
       const inst = await api.createInstallation(payload);
-      toast.success("Installation créée");
+      toast.success("Installation créée — associez vos appareils dans l'onglet Appareils");
       setOpen(false); reset();
       onCreated?.(inst);
     } catch (e) {
@@ -140,7 +98,9 @@ export const CreateInstallationDialog = ({ onCreated }) => {
       <DialogContent className="bg-[#FFFFFF] border-border/70 max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display tracking-tight text-2xl">Créer une installation</DialogTitle>
-          <p className="text-sm text-zinc-500">Définissez les zones. Chaque appareil sera appairé et un QR code (référence) lui sera associé.</p>
+          <DialogDescription className="text-sm text-zinc-500">
+            Définissez les zones (pièces) de votre logement. Vous associerez ensuite vos appareils réels à chaque zone.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
@@ -164,53 +124,6 @@ export const CreateInstallationDialog = ({ onCreated }) => {
                 </button>
               ))}
             </div>
-            <p className="text-[11px] text-zinc-400 mt-1">Pré-remplit les zones ; vous pouvez ensuite les ajuster.</p>
-          </div>
-
-          <div className="flex justify-end">
-            <button data-testid="auto-associate-btn" onClick={autoAssociate} className="inline-flex items-center gap-1.5 text-xs font-semibold text-heat hover:underline">
-              <WifiHigh weight="bold" size={14} /> Tout appairer automatiquement
-            </button>
-          </div>
-
-          {/* Gainable */}
-          <div className="rounded-md border border-border/60 bg-zinc-50 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Wind weight="duotone" size={18} className="text-heat" />
-              <span className="overline text-zinc-600">Gainable (unité principale)</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-zinc-500">Nom</Label>
-                <Input data-testid="gainable-name-input" value={gainableName} onChange={(e) => setGainableName(e.target.value)} className="mt-1 bg-zinc-100 border-border/70" />
-              </div>
-              <div>
-                <Label className="text-xs text-zinc-500">Appareil (appairage)</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  {gainableRef ? (
-                    <div className="flex items-center gap-2 flex-1 rounded-md border border-online/40 bg-online/10 px-3 h-10">
-                      <div className="bg-white p-0.5 rounded"><QRCodeSVG value={`ZONECLIMATE:${gainableRef}`} size={22} /></div>
-                      <span className="font-mono-num text-sm text-online">{gainableRef}</span>
-                      <CheckCircle weight="fill" size={16} className="text-online ml-auto" />
-                    </div>
-                  ) : (
-                    <span className="flex-1 text-sm text-zinc-500 h-10 flex items-center px-1">Non appairé</span>
-                  )}
-                  <Button
-                    type="button"
-                    data-testid="gainable-pair-btn"
-                    onClick={pairGainable}
-                    disabled={pairingKey === "gainable"}
-                    className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold h-10 shrink-0"
-                  >
-                    {pairingKey === "gainable"
-                      ? <CircleNotch size={15} className="animate-spin mr-1.5" />
-                      : <WifiHigh weight="bold" size={15} className="mr-1.5" />}
-                    {gainableRef ? "Ré-appairer" : "Appairer"}
-                  </Button>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Zones */}
@@ -218,7 +131,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Thermometer weight="duotone" size={18} className="text-cool" />
-                <span className="overline text-zinc-600">Zones & thermostats</span>
+                <span className="overline text-zinc-600">Zones (pièces)</span>
               </div>
               <button data-testid="add-zone-btn" onClick={addZone} className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-700 hover:text-zinc-900 transition-colors duration-200">
                 <Plus weight="bold" size={14} /> Ajouter une zone
@@ -228,7 +141,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
             <div className="space-y-3">
               {zones.map((z, i) => (
                 <div key={z.key} data-testid={`zone-row-${i}`} className="rounded-md border border-border/60 bg-zinc-50 p-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_150px_auto_auto] gap-3 items-end">
                     <div>
                       <Label className="text-xs text-zinc-500">Nom de la zone</Label>
                       <Input data-testid={`zone-name-${i}`} value={z.name} onChange={(e) => setZone(z.key, { name: e.target.value })} placeholder="Ex : Salon" className="mt-1 bg-zinc-100 border-border/70" />
@@ -244,42 +157,15 @@ export const CreateInstallationDialog = ({ onCreated }) => {
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 items-end mt-3">
-                    <div className="sm:col-span-1">
-                      <Label className="text-xs text-zinc-500">Thermostat (appairage)</Label>
-                      <div className="flex items-center gap-2 mt-1">
-                        {z.ref_code ? (
-                          <div className="flex items-center gap-2 flex-1 rounded-md border border-online/40 bg-online/10 px-2 h-9 min-w-0">
-                            <div className="bg-white p-0.5 rounded shrink-0"><QRCodeSVG value={`ZONECLIMATE:${z.ref_code}`} size={18} /></div>
-                            <span className="font-mono-num text-xs text-online truncate">{z.ref_code}</span>
-                          </div>
-                        ) : (
-                          <span className="flex-1 text-xs text-zinc-500 h-9 flex items-center">Non appairé</span>
-                        )}
-                        <Button
-                          type="button"
-                          data-testid={`zone-pair-${i}`}
-                          onClick={() => pairZone(z.key)}
-                          disabled={pairingKey === z.key}
-                          className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold h-9 text-xs shrink-0"
-                        >
-                          {pairingKey === z.key
-                            ? <CircleNotch size={13} className="animate-spin mr-1" />
-                            : <WifiHigh weight="bold" size={13} className="mr-1" />}
-                          {z.ref_code ? "Ré-appairer" : "Appairer"}
-                        </Button>
-                      </div>
-                    </div>
                     <button
                       data-testid={`zone-master-${i}`}
                       onClick={() => setMaster(z.key)}
-                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold border transition-colors duration-200"
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold border transition-colors duration-200 h-10"
                       style={{ borderColor: z.master ? "#F59E0B" : "#E4E4E7", background: z.master ? "rgba(245,158,11,0.12)" : "transparent", color: z.master ? "#F59E0B" : "#71717A" }}
                     >
                       <Crown weight={z.master ? "fill" : "regular"} size={14} /> Maître
                     </button>
-                    <button data-testid={`zone-remove-${i}`} onClick={() => removeZone(z.key)} className="w-9 h-9 rounded-full border border-border/70 flex items-center justify-center text-zinc-500 hover:text-offline transition-colors duration-200">
+                    <button data-testid={`zone-remove-${i}`} onClick={() => removeZone(z.key)} className="w-10 h-10 rounded-full border border-border/70 flex items-center justify-center text-zinc-500 hover:text-offline transition-colors duration-200">
                       <Trash size={15} />
                     </button>
                   </div>
@@ -287,10 +173,19 @@ export const CreateInstallationDialog = ({ onCreated }) => {
               ))}
             </div>
           </div>
+
+          {/* Note appairage réel */}
+          <div className="flex items-start gap-2 rounded-md border border-cool/30 bg-cool/5 p-3">
+            <Info weight="fill" size={18} className="text-cool shrink-0 mt-0.5" />
+            <p className="text-xs text-zinc-600 leading-relaxed">
+              Après la création, ouvrez l'onglet <strong>Appareils</strong> puis <strong>« Rechercher des appareils »</strong> (mode Réel)
+              pour retrouver votre gainable et vos thermostats déjà présents dans votre compte, et les associer à ces zones.
+            </p>
+          </div>
         </div>
 
         <DialogFooter>
-          <Button data-testid="create-submit-btn" onClick={submit} disabled={busy || pairingKey !== null} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold">
+          <Button data-testid="create-submit-btn" onClick={submit} disabled={busy} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold">
             {busy ? "Création…" : "Créer l'installation"}
           </Button>
         </DialogFooter>

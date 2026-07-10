@@ -277,13 +277,14 @@ class DeviceSpec(BaseModel):
     name: str
     product_id: Optional[str] = None   # interne, auto-généré si absent
     ref_code: Optional[str] = None      # référence QR (générée si absente)
+    tuya_id: Optional[str] = None       # ID appareil cloud (association réelle)
 
 
 class ZoneSpec(BaseModel):
     name: str
     icon: str = "house"
     master: bool = False
-    thermostat: DeviceSpec
+    thermostat: Optional[DeviceSpec] = None
 
 
 class InstallationCreate(BaseModel):
@@ -351,7 +352,8 @@ async def seed_installation_equipment(installation_id: str, gainable=None, zones
     zones, devices = [], []
 
     if zones_spec:
-        # Configuration fournie : association gainable + thermostats via QR/référence
+        # Configuration fournie : on crée les zones. Les appareils RÉELS seront
+        # associés ensuite dans l'onglet Appareils (mode Réel). Aucun appareil fictif.
         if not any(z.master for z in zones_spec):
             zones_spec[0].master = True
         master_seen = False
@@ -361,20 +363,6 @@ async def seed_installation_equipment(installation_id: str, gainable=None, zones
                 master_seen = True
             z = Zone(installation_id=installation_id, name=zs.name, icon=zs.icon,
                      current_temp=21.0, setpoint=21.0, order=i, is_master=master)
-            therm = Device(installation_id=installation_id, name=zs.thermostat.name,
-                           category="thermostat",
-                           product_id=zs.thermostat.product_id or gen_product_id("thermostat"),
-                           ref_code=zs.thermostat.ref_code or gen_ref(),
-                           battery=random.randint(60, 100), signal=random.randint(70, 99),
-                           zone_id=z.id)
-            z.device_id = therm.id
-            devices.append(therm)
-            if master and gainable:
-                devices.append(Device(installation_id=installation_id, name=gainable.name,
-                                      category="gainable",
-                                      product_id=gainable.product_id or gen_product_id("gainable"),
-                                      ref_code=gainable.ref_code or gen_ref(),
-                                      signal=98, zone_id=z.id))
             zones.append(z.model_dump())
     else:
         for i, (name, icon, cur, sp) in enumerate(ZONES_DEF):
@@ -394,7 +382,8 @@ async def seed_installation_equipment(installation_id: str, gainable=None, zones
             zones.append(z.model_dump())
 
     await db.zones.insert_many(zones)
-    await db.devices.insert_many([d.model_dump() for d in devices])
+    if devices:
+        await db.devices.insert_many([d.model_dump() for d in devices])
 
 
 async def ensure_user(email, password, name, role):
