@@ -3,7 +3,7 @@ import { Plus, Trash, Wind, Thermometer, Crown, WifiHigh, CheckCircle, CircleNot
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import api, { formatApiErrorDetail } from "../lib/api";
-import { zoneIcons } from "../lib/icons";
+import { zoneIcons, PIECE_LABELS } from "../lib/icons";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -103,7 +103,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
           <Plus weight="bold" size={16} className="mr-2" /> Nouvelle installation
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-[#121212] border-border/70 max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="bg-[#FFFFFF] border-border/70 max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display tracking-tight text-2xl">Créer une installation</DialogTitle>
           <p className="text-sm text-zinc-500">Définissez les zones. Chaque appareil sera appairé et un QR code (référence) lui sera associé.</p>
@@ -111,8 +111,8 @@ export const CreateInstallationDialog = ({ onCreated }) => {
 
         <div className="space-y-5 py-2">
           <div>
-            <Label className="text-xs text-zinc-400">Nom de l'installation</Label>
-            <Input data-testid="installation-name-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : Maison Dupont" className="mt-1 bg-black/40 border-border/70" />
+            <Label className="text-xs text-zinc-600">Nom de l'installation</Label>
+            <Input data-testid="installation-name-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : Maison Dupont" className="mt-1 bg-zinc-100 border-border/70" />
           </div>
 
           <div className="flex justify-end">
@@ -122,15 +122,15 @@ export const CreateInstallationDialog = ({ onCreated }) => {
           </div>
 
           {/* Gainable */}
-          <div className="rounded-md border border-border/60 bg-black/30 p-4">
+          <div className="rounded-md border border-border/60 bg-zinc-50 p-4">
             <div className="flex items-center gap-2 mb-3">
               <Wind weight="duotone" size={18} className="text-heat" />
-              <span className="overline text-zinc-400">Gainable (unité principale)</span>
+              <span className="overline text-zinc-600">Gainable (unité principale)</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-zinc-500">Nom</Label>
-                <Input data-testid="gainable-name-input" value={gainableName} onChange={(e) => setGainableName(e.target.value)} className="mt-1 bg-black/40 border-border/70" />
+                <Input data-testid="gainable-name-input" value={gainableName} onChange={(e) => setGainableName(e.target.value)} className="mt-1 bg-zinc-100 border-border/70" />
               </div>
               <div>
                 <Label className="text-xs text-zinc-500">Appareil (appairage)</Label>
@@ -166,29 +166,29 @@ export const CreateInstallationDialog = ({ onCreated }) => {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Thermometer weight="duotone" size={18} className="text-cool" />
-                <span className="overline text-zinc-400">Zones & thermostats</span>
+                <span className="overline text-zinc-600">Zones & thermostats</span>
               </div>
-              <button data-testid="add-zone-btn" onClick={addZone} className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-300 hover:text-white transition-colors duration-200">
+              <button data-testid="add-zone-btn" onClick={addZone} className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-700 hover:text-zinc-900 transition-colors duration-200">
                 <Plus weight="bold" size={14} /> Ajouter une zone
               </button>
             </div>
 
             <div className="space-y-3">
               {zones.map((z, i) => (
-                <div key={z.key} data-testid={`zone-row-${i}`} className="rounded-md border border-border/60 bg-black/30 p-3">
+                <div key={z.key} data-testid={`zone-row-${i}`} className="rounded-md border border-border/60 bg-zinc-50 p-3">
                   <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-3">
                     <div>
                       <Label className="text-xs text-zinc-500">Nom de la zone</Label>
-                      <Input data-testid={`zone-name-${i}`} value={z.name} onChange={(e) => setZone(z.key, { name: e.target.value })} placeholder="Ex : Salon" className="mt-1 bg-black/40 border-border/70" />
+                      <Input data-testid={`zone-name-${i}`} value={z.name} onChange={(e) => setZone(z.key, { name: e.target.value })} placeholder="Ex : Salon" className="mt-1 bg-zinc-100 border-border/70" />
                     </div>
                     <div>
                       <Label className="text-xs text-zinc-500">Pièce</Label>
                       <Select value={z.icon} onValueChange={(v) => setZone(z.key, { icon: v })}>
-                        <SelectTrigger data-testid={`zone-icon-${i}`} className="mt-1 bg-black/40 border-border/70 h-10 capitalize">
+                        <SelectTrigger data-testid={`zone-icon-${i}`} className="mt-1 bg-zinc-100 border-border/70 h-10">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {ICON_OPTIONS.map((ic) => (<SelectItem key={ic} value={ic} className="capitalize">{ic}</SelectItem>))}
+                          {ICON_OPTIONS.map((ic) => (<SelectItem key={ic} value={ic}>{PIECE_LABELS[ic] || ic}</SelectItem>))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -223,7 +223,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
                       data-testid={`zone-master-${i}`}
                       onClick={() => setMaster(z.key)}
                       className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold border transition-colors duration-200"
-                      style={{ borderColor: z.master ? "#F59E0B" : "#27272A", background: z.master ? "rgba(245,158,11,0.12)" : "transparent", color: z.master ? "#F59E0B" : "#A1A1AA" }}
+                      style={{ borderColor: z.master ? "#F59E0B" : "#E4E4E7", background: z.master ? "rgba(245,158,11,0.12)" : "transparent", color: z.master ? "#F59E0B" : "#71717A" }}
                     >
                       <Crown weight={z.master ? "fill" : "regular"} size={14} /> Maître
                     </button>

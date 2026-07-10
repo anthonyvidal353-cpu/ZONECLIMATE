@@ -125,7 +125,7 @@ export default function InstallationDashboard() {
   if (loading || !system || !installation) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex items-center gap-3 text-zinc-400">
+        <div className="flex items-center gap-3 text-zinc-600">
           <Thermometer size={22} className="animate-pulse text-heat" />
           <span className="font-display">Chargement…</span>
         </div>
@@ -154,7 +154,7 @@ export default function InstallationDashboard() {
 
   return (
     <AppShell right={headerRight}>
-      <button data-testid="back-btn" onClick={() => navigate("/")} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors duration-200 mb-4">
+      <button data-testid="back-btn" onClick={() => navigate("/")} className="inline-flex items-center gap-2 text-sm text-zinc-600 hover:text-zinc-900 transition-colors duration-200 mb-4">
         <ArrowLeft size={16} /> Mes installations
       </button>
 
@@ -169,13 +169,13 @@ export default function InstallationDashboard() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border border-border/60 bg-[#121212] rounded-full p-1 w-fit mb-6 overflow-x-auto">
+      <div className="flex gap-1 border border-border/60 bg-[#FFFFFF] rounded-full p-1 w-fit mb-6 overflow-x-auto">
         {TABS.map((t) => {
           const Icon = t.icon;
           return (
             <button key={t.key} data-testid={`tab-${t.key}`} onClick={() => setTab(t.key)}
               className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors duration-200 whitespace-nowrap"
-              style={{ background: tab === t.key ? "#FAFAFA" : "transparent", color: tab === t.key ? "#0A0A0A" : "#A1A1AA" }}>
+              style={{ background: tab === t.key ? "#3F3F46" : "transparent", color: tab === t.key ? "#FFFFFF" : "#71717A" }}>
               <Icon weight={tab === t.key ? "fill" : "regular"} size={17} />
               {t.label}
             </button>

@@ -17,3 +17,13 @@ export function ZoneIcon({ name, ...props }) {
 
 export const DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 export const DAYS_FULL = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+
+export const PIECE_LABELS = {
+  couch: "Salon",
+  fork: "Cuisine",
+  bed: "Chambre",
+  baby: "Chambre enfant",
+  desktop: "Bureau",
+  shower: "Salle de bain",
+  house: "Autre pièce",
+};

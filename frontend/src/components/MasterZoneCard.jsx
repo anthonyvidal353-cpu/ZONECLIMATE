@@ -46,8 +46,8 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
       data-testid="master-zone-card"
-      className="relative overflow-hidden border bg-[#121212] rounded-lg"
-      style={{ borderColor: on ? `${accent}55` : "#27272A" }}
+      className="relative overflow-hidden border bg-[#FFFFFF] rounded-lg"
+      style={{ borderColor: on ? `${accent}55` : "#E4E4E7" }}
     >
       <div
         aria-hidden="true"
@@ -62,7 +62,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
             <div className="flex items-center gap-3">
               <div
                 className="w-11 h-11 rounded-md flex items-center justify-center border"
-                style={{ color: on ? accent : "#52525B", borderColor: on ? `${accent}55` : "#27272A", background: "rgba(255,255,255,0.02)" }}
+                style={{ color: on ? accent : "#52525B", borderColor: on ? `${accent}55` : "#E4E4E7", background: "rgba(0,0,0,0.03)" }}
               >
                 <ZoneIcon name={zone.icon} weight="duotone" size={24} />
               </div>
@@ -83,12 +83,12 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                         if (e.key === "Enter") saveName();
                         if (e.key === "Escape") { setDraft(zone.name); setEditing(false); }
                       }}
-                      className="bg-black/50 border border-border/70 rounded px-2 py-1 text-xl font-display font-extrabold w-52 outline-none focus:border-zinc-500"
+                      className="bg-zinc-100 border border-border/70 rounded px-2 py-1 text-xl font-display font-extrabold w-52 outline-none focus:border-zinc-500"
                     />
-                    <button data-testid="master-zone-name-save" onClick={saveName} className="w-7 h-7 rounded flex items-center justify-center text-online hover:bg-white/5">
+                    <button data-testid="master-zone-name-save" onClick={saveName} className="w-7 h-7 rounded flex items-center justify-center text-online hover:bg-zinc-100">
                       <Check weight="bold" size={16} />
                     </button>
-                    <button onClick={() => { setDraft(zone.name); setEditing(false); }} className="w-7 h-7 rounded flex items-center justify-center text-zinc-500 hover:bg-white/5">
+                    <button onClick={() => { setDraft(zone.name); setEditing(false); }} className="w-7 h-7 rounded flex items-center justify-center text-zinc-500 hover:bg-zinc-100">
                       <X weight="bold" size={16} />
                     </button>
                   </div>
@@ -96,7 +96,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                   <div className="flex items-center gap-2 mt-0.5">
                     <h2 className="font-display text-2xl md:text-3xl font-extrabold tracking-tighter">{zone.name}</h2>
                     {canWrite && (
-                      <button data-testid="master-zone-name-edit" onClick={() => { setDraft(zone.name); setEditing(true); }} className="text-zinc-600 hover:text-white transition-colors duration-200" aria-label="Renommer">
+                      <button data-testid="master-zone-name-edit" onClick={() => { setDraft(zone.name); setEditing(true); }} className="text-zinc-600 hover:text-zinc-900 transition-colors duration-200" aria-label="Renommer">
                         <PencilSimple size={16} />
                       </button>
                     )}
@@ -124,7 +124,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
           <div className="flex items-end justify-between">
             <div>
               <p className="overline text-zinc-500">Température actuelle</p>
-              <div className="font-mono-num text-5xl md:text-6xl font-semibold leading-none mt-1" style={{ color: on ? "#FAFAFA" : "#71717A" }}>
+              <div className="font-mono-num text-5xl md:text-6xl font-semibold leading-none mt-1" style={{ color: on ? "#3F3F46" : "#71717A" }}>
                 {zone.current_temp.toFixed(1)}<span className="text-2xl text-zinc-500">°</span>
               </div>
             </div>
@@ -133,7 +133,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                 data-testid="master-temp-down"
                 onClick={() => adjust(-0.5)}
                 disabled={!on || !canWrite}
-                className="w-10 h-10 rounded-full border border-border/70 flex items-center justify-center text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
+                className="w-10 h-10 rounded-full border border-border/70 flex items-center justify-center text-zinc-700 hover:text-zinc-900 hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
               >
                 <Minus weight="bold" size={18} />
               </button>
@@ -145,7 +145,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                 data-testid="master-temp-up"
                 onClick={() => adjust(0.5)}
                 disabled={!on || !canWrite}
-                className="w-10 h-10 rounded-full border border-border/70 flex items-center justify-center text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
+                className="w-10 h-10 rounded-full border border-border/70 flex items-center justify-center text-zinc-700 hover:text-zinc-900 hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
               >
                 <Plus weight="bold" size={18} />
               </button>
@@ -174,12 +174,12 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
               </button>
 
               <div className="flex flex-wrap items-center gap-3">
-                <div className="inline-flex rounded-full border border-border/70 p-1 bg-black/40">
+                <div className="inline-flex rounded-full border border-border/70 p-1 bg-zinc-100">
                   <button
                     data-testid="mode-chaud-btn"
                     onClick={() => onSystem({ mode: "chaud" })}
                     className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200"
-                    style={{ background: heat ? "#FF5722" : "transparent", color: heat ? "#0A0A0A" : "#A1A1AA" }}
+                    style={{ background: heat ? "#FF5722" : "transparent", color: heat ? "#FFFFFF" : "#71717A" }}
                   >
                     <Fire weight="fill" size={16} /> Chaud
                   </button>
@@ -187,13 +187,13 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                     data-testid="mode-froid-btn"
                     onClick={() => onSystem({ mode: "froid" })}
                     className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200"
-                    style={{ background: !heat ? "#3B82F6" : "transparent", color: !heat ? "#0A0A0A" : "#A1A1AA" }}
+                    style={{ background: !heat ? "#3B82F6" : "transparent", color: !heat ? "#FFFFFF" : "#71717A" }}
                   >
                     <Snowflake weight="fill" size={16} /> Froid
                   </button>
                 </div>
 
-                <div className="inline-flex items-center gap-1 rounded-full border border-border/70 p-1 bg-black/40">
+                <div className="inline-flex items-center gap-1 rounded-full border border-border/70 p-1 bg-zinc-100">
                   <Wind size={16} className="text-zinc-500 ml-2" aria-hidden="true" />
                   {FAN_OPTIONS.map((f) => (
                     <button
@@ -201,7 +201,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                       data-testid={`fan-${f.key}-btn`}
                       onClick={() => onSystem({ fan_speed: f.key })}
                       className="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200"
-                      style={{ background: system.fan_speed === f.key ? "#FAFAFA" : "transparent", color: system.fan_speed === f.key ? "#0A0A0A" : "#A1A1AA" }}
+                      style={{ background: system.fan_speed === f.key ? "#3F3F46" : "transparent", color: system.fan_speed === f.key ? "#FFFFFF" : "#71717A" }}
                     >
                       {f.label}
                     </button>
@@ -210,27 +210,27 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
               </div>
             </>
           ) : (
-            <div className="rounded-md border border-border/50 bg-black/30 p-4 text-sm text-zinc-400" data-testid="readonly-notice">
+            <div className="rounded-md border border-border/50 bg-zinc-50 p-4 text-sm text-zinc-600" data-testid="readonly-notice">
               Mode <span style={{ color: accent }} className="font-semibold">{heat ? "Chaud" : "Froid"}</span> ·
-              Ventilation <span className="font-semibold text-zinc-200">{system.fan_speed}</span> ·
+              Ventilation <span className="font-semibold text-zinc-800">{system.fan_speed}</span> ·
               Système <span className="font-semibold" style={{ color: on ? "#10B981" : "#EF4444" }}>{on ? "actif" : "arrêté"}</span>
               <p className="text-xs text-zinc-500 mt-1">Consultation seule — vous ne pouvez pas modifier les commandes.</p>
             </div>
           )}
 
           {/* Fault codes */}
-          <div className="mt-1 rounded-md border border-border/50 bg-black/30 p-4" data-testid="fault-codes">
+          <div className="mt-1 rounded-md border border-border/50 bg-zinc-50 p-4" data-testid="fault-codes">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Stethoscope weight="duotone" size={16} className="text-zinc-400" />
-                <span className="overline text-zinc-400">Codes défauts</span>
+                <Stethoscope weight="duotone" size={16} className="text-zinc-600" />
+                <span className="overline text-zinc-600">Codes défauts</span>
               </div>
               {canWrite && (
                 <button
                   data-testid="run-diagnostic-btn"
                   onClick={onDiagnostic}
                   disabled={diagnosing}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-300 hover:text-white transition-colors duration-200 disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 hover:text-zinc-900 transition-colors duration-200 disabled:opacity-40"
                 >
                   <ArrowsClockwise size={13} weight="bold" className={diagnosing ? "animate-spin" : ""} />
                   Diagnostic
@@ -268,7 +268,7 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
                       >
                         <SIcon weight="fill" size={18} style={{ color: s.color }} />
                         <span className="font-mono-num font-semibold text-sm" style={{ color: s.color }}>{f.code}</span>
-                        <span className="text-sm text-zinc-300 flex-1">{f.label}</span>
+                        <span className="text-sm text-zinc-700 flex-1">{f.label}</span>
                       </motion.div>
                     );
                   })}

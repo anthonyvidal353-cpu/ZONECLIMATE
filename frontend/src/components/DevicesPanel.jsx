@@ -15,7 +15,7 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
   const [qrDevice, setQrDevice] = useState(null);
 
   return (
-    <div className="border border-border/60 bg-[#121212] rounded-lg">
+    <div className="border border-border/60 bg-[#FFFFFF] rounded-lg">
       <div className="flex items-center justify-between p-6 border-b border-border/50">
         <div>
           <p className="overline text-zinc-500">Équipement · Synchronisation</p>
@@ -26,7 +26,7 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
             data-testid="sync-devices-btn"
             onClick={onSync}
             disabled={syncing}
-            className="rounded-full bg-white text-black hover:bg-zinc-200 font-semibold disabled:opacity-40"
+            className="rounded-full bg-zinc-900 text-zinc-900 hover:bg-zinc-800 font-semibold disabled:opacity-40"
           >
             <ArrowsClockwise weight="bold" size={16} className={syncing ? "animate-spin mr-2" : "mr-2"} />
             {syncing ? "Synchronisation…" : "Synchroniser"}
@@ -42,7 +42,7 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.04 }}
             data-testid={`device-row-${d.id}`}
-            className="flex items-center justify-between p-4 md:px-6 hover:bg-white/[0.02] transition-colors duration-200"
+            className="flex items-center justify-between p-4 md:px-6 hover:bg-zinc-50 transition-colors duration-200"
           >
             <div className="flex items-center gap-3">
               {/* QR code de l'appareil */}
@@ -54,7 +54,7 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
               >
                 {d.ref_code ? <QRCodeSVG value={`ZONECLIMATE:${d.ref_code}`} size={36} /> : <QrCode size={24} className="text-black" />}
               </button>
-              <div className="w-9 h-9 rounded-md border border-border/60 flex items-center justify-center text-zinc-300">
+              <div className="w-9 h-9 rounded-md border border-border/60 flex items-center justify-center text-zinc-700">
                 {d.category === "gainable" ? <Wind weight="duotone" size={18} /> : <Thermometer weight="duotone" size={18} />}
               </div>
               <div>
@@ -65,11 +65,11 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
 
             <div className="flex items-center gap-4">
               {d.battery != null && (
-                <span className="flex items-center gap-1 text-xs text-zinc-400 font-mono-num">
+                <span className="flex items-center gap-1 text-xs text-zinc-600 font-mono-num">
                   <BatteryIcon level={d.battery} /> {d.battery}%
                 </span>
               )}
-              <span className="hidden sm:flex items-center gap-1 text-xs text-zinc-400 font-mono-num">
+              <span className="hidden sm:flex items-center gap-1 text-xs text-zinc-600 font-mono-num">
                 <WifiHigh size={14} className="text-zinc-500" /> {d.signal}%
               </span>
               <span
@@ -88,7 +88,7 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
       </div>
 
       <Dialog open={!!qrDevice} onOpenChange={(o) => !o && setQrDevice(null)}>
-        <DialogContent className="bg-[#121212] border-border/70 max-w-xs" data-testid="qr-dialog">
+        <DialogContent className="bg-[#FFFFFF] border-border/70 max-w-xs" data-testid="qr-dialog">
           <DialogHeader><DialogTitle className="font-display tracking-tight">{qrDevice?.name}</DialogTitle></DialogHeader>
           <div className="flex flex-col items-center gap-4 py-4">
             <div className="bg-white p-4 rounded-lg">

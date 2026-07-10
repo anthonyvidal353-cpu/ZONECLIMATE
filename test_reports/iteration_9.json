@@ -1,0 +1,30 @@
+{
+  "summary": "Frontend-only regression for iteration 9 (light theme + FR piece labels). Login/dashboard/tabs/mode/temp/appairage all work. FR labels correct. Two CRITICAL contrast bugs: 'Synchroniser' and 'Créneau' buttons are black text on black background (invisible).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "SchedulePanel - Add slot button", "issue": "Bouton 'Créneau' (Planning) - color rgb(24,24,27) sur bg rgb(24,24,27). Texte + icône invisibles (black on black). Le libellé + icône Plus ne se voient pas.", "selector": "[data-testid='add-slot-btn']", "priority": "HIGH"},
+      {"component": "DevicesPanel - Sync button", "issue": "Bouton 'Synchroniser' (Appareils, à côté de 'Appareils détectés') - color rgb(24,24,27) sur bg rgb(24,24,27). Texte + icône invisibles.", "selector": "[data-testid='sync-devices-btn']", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Planning + Appareils", "issues": ["Boutons secondaires (add-slot-btn, sync-devices-btn) utilisent une classe/variant qui garde le bg zinc-900 avec text-zinc-900 -> contraste nul en thème clair. Devrait être text-white sur bg zinc-900, ou variant outline gris."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Corriger la couleur du texte des boutons add-slot-btn (SchedulePanel) et sync-devices-btn (DevicesPanel) - actuellement texte zinc-900 sur bg zinc-900 -> mettre text-white ou text-zinc-50 (comme les onglets actifs qui sont bien lisibles: white sur zinc-700).",
+    "Vérifier si d'autres boutons utilisent la même classe 'Button' variant par défaut qui a été mal migrée du thème sombre."
+  ],
+  "critical_code_review_comments": [
+    "Le composant Button (shadcn ui/button) semble avoir une classe par défaut qui définit à la fois bg-zinc-900 ET text-zinc-900 en light theme -> vérifier ui/button.jsx et corriger la variant default."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested", "frontend": "85%"},
+  "test_credentials": "client@demo.fr/Demo1234! and installateur@demo.fr/Demo1234! - OK",
+  "seed_data_creation": "None - no test installations created (aborted create dialog after verifying labels)",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Toutes les fonctionnalités marchent. Seuls 2 boutons (add-slot-btn, sync-devices-btn) sont illisibles. Ce sont probablement des Button variant='default' avec un override de couleur mal fait. Vérifier ui/button.jsx et les usages avec class overrides.",
+  "rca of the issue": "Les boutons add-slot-btn et sync-devices-btn ont computed style color=rgb(24,24,27) et background=rgb(24,24,27) - identiques. Reproduction: se connecter client@demo.fr -> Maison Client Démo -> onglet Planning (voir bouton 'Créneau' à droite du selecteur Salon) OU onglet Appareils (voir bouton 'Synchroniser' près de 'Appareils détectés'). Mitigation: forcer text-white/text-zinc-50 sur ces boutons ou corriger la variant default du Button shadcn."
+}

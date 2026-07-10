@@ -75,7 +75,7 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
   };
 
   return (
-    <div className="border border-border/60 bg-[#121212] rounded-lg">
+    <div className="border border-border/60 bg-[#FFFFFF] rounded-lg">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-6 border-b border-border/50">
         <div>
           <p className="overline text-zinc-500">Appairage</p>
@@ -111,7 +111,7 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
                     <div className="w-10 h-10 rounded-md bg-white p-1 flex items-center justify-center shrink-0">
                       <QRCodeSVG value={`ZONECLIMATE:${p.ref_code}`} size={32} />
                     </div>
-                    <div className="w-9 h-9 rounded-md border border-border/60 flex items-center justify-center text-zinc-200">
+                    <div className="w-9 h-9 rounded-md border border-border/60 flex items-center justify-center text-zinc-800">
                       {isGainable ? <Wind weight="duotone" size={18} /> : <Thermometer weight="duotone" size={18} />}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -135,7 +135,7 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
                       <>
                         <span className="text-xs text-zinc-500 shrink-0">Zone :</span>
                         <Select value={c.zone_id || ""} onValueChange={(v) => setC(p.id, { zone_id: v, new_zone_name: "" })}>
-                          <SelectTrigger data-testid={`pairing-zone-${p.id}`} className="w-full sm:w-[180px] h-9 bg-black/40 border-border/70 rounded-full text-xs">
+                          <SelectTrigger data-testid={`pairing-zone-${p.id}`} className="w-full sm:w-[180px] h-9 bg-zinc-100 border-border/70 rounded-full text-xs">
                             <SelectValue placeholder="Choisir une zone…" />
                           </SelectTrigger>
                           <SelectContent>
@@ -148,11 +148,11 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
                           value={c.new_zone_name || ""}
                           onChange={(e) => setC(p.id, { new_zone_name: e.target.value, zone_id: "" })}
                           placeholder="Nouvelle zone…"
-                          className="h-9 bg-black/40 border-border/70 w-full sm:w-[150px]"
+                          className="h-9 bg-zinc-100 border-border/70 w-full sm:w-[150px]"
                         />
                       </>
                     )}
-                    {isGainable && <span className="text-xs text-zinc-400 flex-1">Sera associé au gainable de la zone maître.</span>}
+                    {isGainable && <span className="text-xs text-zinc-600 flex-1">Sera associé au gainable de la zone maître.</span>}
                     <Button
                       data-testid={`pairing-associate-${p.id}`}
                       onClick={() => associate(p)}

@@ -60,12 +60,12 @@ export default function Login() {
           <h1 className="font-display text-5xl font-extrabold tracking-tighter leading-[1.05]">
             Votre installation,<br />zone par zone.
           </h1>
-          <p className="text-zinc-400 mt-5 max-w-md">
+          <p className="text-zinc-600 mt-5 max-w-md">
             Centralisez votre gainable et vos thermostats connectés. Un thermostat maître
             pilote le mode chaud/froid, chaque zone garde sa consigne.
           </p>
         </div>
-        <div className="relative rounded-lg border border-border/60 bg-[#121212] p-4">
+        <div className="relative rounded-lg border border-border/60 bg-[#FFFFFF] p-4">
           <p className="overline text-zinc-500 mb-2">Comptes de démonstration</p>
           <div className="space-y-1">
             {demoAccounts.map(([label, mail, pw]) => (
@@ -73,9 +73,9 @@ export default function Login() {
                 key={mail}
                 onClick={() => { setMode("login"); setEmail(mail); setPassword(pw); }}
                 data-testid={`demo-${mail}`}
-                className="w-full flex items-center justify-between text-xs rounded px-2 py-1.5 hover:bg-white/5 transition-colors duration-200"
+                className="w-full flex items-center justify-between text-xs rounded px-2 py-1.5 hover:bg-zinc-100 transition-colors duration-200"
               >
-                <span className="text-zinc-300">{label}</span>
+                <span className="text-zinc-700">{label}</span>
                 <span className="font-mono-num text-zinc-500">{mail}</span>
               </button>
             ))}
@@ -96,35 +96,35 @@ export default function Login() {
           <form onSubmit={submit} className="mt-8 space-y-4">
             {mode === "register" && (
               <div>
-                <Label className="text-xs text-zinc-400">Nom complet</Label>
+                <Label className="text-xs text-zinc-600">Nom complet</Label>
                 <div className="relative mt-1">
                   <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                  <Input data-testid="name-input" value={name} onChange={(e) => setName(e.target.value)} required className="pl-9 bg-black/40 border-border/70" placeholder="Jean Dupont" />
+                  <Input data-testid="name-input" value={name} onChange={(e) => setName(e.target.value)} required className="pl-9 bg-zinc-100 border-border/70" placeholder="Jean Dupont" />
                 </div>
               </div>
             )}
             <div>
-              <Label className="text-xs text-zinc-400">Email</Label>
+              <Label className="text-xs text-zinc-600">Email</Label>
               <div className="relative mt-1">
                 <Envelope size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                <Input data-testid="email-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="pl-9 bg-black/40 border-border/70" placeholder="vous@exemple.fr" />
+                <Input data-testid="email-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="pl-9 bg-zinc-100 border-border/70" placeholder="vous@exemple.fr" />
               </div>
             </div>
             <div>
-              <Label className="text-xs text-zinc-400">Mot de passe</Label>
+              <Label className="text-xs text-zinc-600">Mot de passe</Label>
               <div className="relative mt-1">
                 <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                <Input data-testid="password-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="pl-9 bg-black/40 border-border/70" placeholder="••••••••" />
+                <Input data-testid="password-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="pl-9 bg-zinc-100 border-border/70" placeholder="••••••••" />
               </div>
             </div>
             {mode === "register" && (
               <div>
-                <Label className="text-xs text-zinc-400">Je suis</Label>
+                <Label className="text-xs text-zinc-600">Je suis</Label>
                 <div className="flex gap-2 mt-1">
                   {[["client", "Client"], ["installer", "Installateur"]].map(([val, lbl]) => (
                     <button key={val} type="button" data-testid={`role-${val}`} onClick={() => setRole(val)}
                       className="flex-1 rounded-md border py-2 text-sm font-semibold transition-colors duration-200"
-                      style={{ borderColor: role === val ? "#FF5722" : "#27272A", background: role === val ? "rgba(255,87,34,0.12)" : "transparent", color: role === val ? "#FF5722" : "#A1A1AA" }}>
+                      style={{ borderColor: role === val ? "#FF5722" : "#E4E4E7", background: role === val ? "rgba(255,87,34,0.12)" : "transparent", color: role === val ? "#FF5722" : "#71717A" }}>
                       {lbl}
                     </button>
                   ))}

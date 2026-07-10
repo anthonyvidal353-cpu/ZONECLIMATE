@@ -10,7 +10,7 @@ import InstallationDashboard from "@/pages/InstallationDashboard";
 function Splash() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="flex items-center gap-3 text-zinc-400">
+      <div className="flex items-center gap-3 text-zinc-600">
         <Thermometer size={22} className="animate-pulse text-heat" />
         <span className="font-display">ZoneClimate…</span>
       </div>
@@ -36,7 +36,7 @@ function App() {
   return (
     <div className="App">
       <AuthProvider>
-        <Toaster theme="dark" position="top-right" richColors />
+        <Toaster theme="light" position="top-right" richColors />
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginRoute />} />

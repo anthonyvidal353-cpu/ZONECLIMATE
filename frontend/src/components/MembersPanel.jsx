@@ -9,7 +9,7 @@ import { Switch } from "./ui/switch";
 const RELATION_ICON = (relation) => {
   if (relation?.startsWith("Propriétaire")) return <Crown weight="fill" size={18} className="text-amber-400" />;
   if (relation?.startsWith("Installateur")) return <Wrench weight="duotone" size={18} className="text-cool" />;
-  return <User weight="duotone" size={18} className="text-zinc-400" />;
+  return <User weight="duotone" size={18} className="text-zinc-600" />;
 };
 
 export const MembersPanel = ({ installation, onUpdated }) => {
@@ -65,7 +65,7 @@ export const MembersPanel = ({ installation, onUpdated }) => {
   return (
     <div className="space-y-6">
       {/* Members */}
-      <div className="border border-border/60 bg-[#121212] rounded-lg">
+      <div className="border border-border/60 bg-[#FFFFFF] rounded-lg">
         <div className="p-6 border-b border-border/50">
           <p className="overline text-zinc-500">Accès à l'installation</p>
           <h2 className="font-display text-2xl font-bold tracking-tight mt-1">Membres</h2>
@@ -95,7 +95,7 @@ export const MembersPanel = ({ installation, onUpdated }) => {
 
       {/* Invitations */}
       {(canInviteClient || canInviteGuest) && (
-        <div className="border border-border/60 bg-[#121212] rounded-lg p-6">
+        <div className="border border-border/60 bg-[#FFFFFF] rounded-lg p-6">
           <p className="overline text-zinc-500">Inviter</p>
           <h2 className="font-display text-2xl font-bold tracking-tight mt-1 mb-4">Ajouter un utilisateur</h2>
 
@@ -118,10 +118,10 @@ export const MembersPanel = ({ installation, onUpdated }) => {
           {lastCode && (
             <div data-testid="invite-code-box" className="mt-4 flex items-center justify-between rounded-md border border-heat/40 bg-heat/10 px-4 py-3">
               <div>
-                <p className="text-xs text-zinc-400">Code d'invitation ({lastCode.role === "client" ? "client / maître" : "invité"})</p>
+                <p className="text-xs text-zinc-600">Code d'invitation ({lastCode.role === "client" ? "client / maître" : "invité"})</p>
                 <p className="font-mono-num text-2xl font-bold text-heat tracking-widest">{lastCode.code}</p>
               </div>
-              <button onClick={() => copy(lastCode.code)} className="text-zinc-300 hover:text-white transition-colors duration-200">
+              <button onClick={() => copy(lastCode.code)} className="text-zinc-700 hover:text-zinc-900 transition-colors duration-200">
                 <Copy size={20} />
               </button>
             </div>
@@ -132,10 +132,10 @@ export const MembersPanel = ({ installation, onUpdated }) => {
               <p className="overline text-zinc-500 mb-2">Invitations en attente</p>
               <div className="space-y-1">
                 {invites.filter((i) => i.status === "pending").map((i) => (
-                  <div key={i.id} className="flex items-center justify-between text-sm rounded px-3 py-2 bg-black/30 border border-border/50">
+                  <div key={i.id} className="flex items-center justify-between text-sm rounded px-3 py-2 bg-zinc-50 border border-border/50">
                     <span className="font-mono-num font-semibold tracking-widest">{i.code}</span>
                     <span className="text-zinc-500">{i.role === "client" ? "Client (maître)" : "Invité"}</span>
-                    <button onClick={() => copy(i.code)} className="text-zinc-400 hover:text-white"><Copy size={16} /></button>
+                    <button onClick={() => copy(i.code)} className="text-zinc-600 hover:text-zinc-900"><Copy size={16} /></button>
                   </div>
                 ))}
               </div>

@@ -8,18 +8,18 @@ const ROLE_COLORS = {
   moderator: "#F59E0B",
   installer: "#3B82F6",
   client: "#10B981",
-  guest: "#A1A1AA",
+  guest: "#71717A",
 };
 
 export const AppShell = ({ children, right }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const rc = ROLE_COLORS[user?.role] || "#A1A1AA";
+  const rc = ROLE_COLORS[user?.role] || "#71717A";
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b border-border/50 bg-black/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-border/50 bg-white/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <button onClick={() => navigate("/")} className="flex items-center gap-3" data-testid="logo-home">
             <div className="w-9 h-9 rounded-md bg-heat/15 border border-heat/30 flex items-center justify-center">
@@ -46,7 +46,7 @@ export const AppShell = ({ children, right }) => {
                 </div>
               </button>
               {open && (
-                <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border/70 bg-[#121212] p-2 shadow-xl z-50">
+                <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border/70 bg-[#FFFFFF] p-2 shadow-xl z-50">
                   <div className="px-3 py-2 border-b border-border/50 mb-1">
                     <p className="text-sm font-semibold">{user?.name}</p>
                     <p className="text-xs text-zinc-500">{user?.email}</p>
@@ -57,7 +57,7 @@ export const AppShell = ({ children, right }) => {
                   <button
                     data-testid="logout-btn"
                     onClick={logout}
-                    className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white transition-colors duration-200"
+                    className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors duration-200"
                   >
                     <SignOut size={16} /> Se déconnecter
                   </button>

@@ -32,13 +32,13 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.05 }}
       data-testid={`zone-card-${zone.id}`}
-      className="relative flex flex-col border border-border/60 bg-[#121212] rounded-lg p-6 group"
+      className="relative flex flex-col border border-border/60 bg-[#FFFFFF] rounded-lg p-6 group"
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-md flex items-center justify-center border border-border/60"
-            style={{ color: active ? accent : "#52525B", background: "rgba(255,255,255,0.02)" }}
+            style={{ color: active ? accent : "#52525B", background: "rgba(0,0,0,0.03)" }}
           >
             <ZoneIcon name={zone.icon} weight="duotone" size={22} />
           </div>
@@ -54,18 +54,18 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
                     if (e.key === "Enter") saveName();
                     if (e.key === "Escape") { setDraft(zone.name); setEditing(false); }
                   }}
-                  className="bg-black/50 border border-border/70 rounded px-2 py-1 text-base font-display font-bold w-40 outline-none focus:border-zinc-500"
+                  className="bg-zinc-100 border border-border/70 rounded px-2 py-1 text-base font-display font-bold w-40 outline-none focus:border-zinc-500"
                 />
                 <button
                   data-testid={`zone-name-save-${zone.id}`}
                   onClick={saveName}
-                  className="w-7 h-7 rounded flex items-center justify-center text-online hover:bg-white/5 transition-colors duration-200"
+                  className="w-7 h-7 rounded flex items-center justify-center text-online hover:bg-zinc-100 transition-colors duration-200"
                 >
                   <Check weight="bold" size={16} />
                 </button>
                 <button
                   onClick={() => { setDraft(zone.name); setEditing(false); }}
-                  className="w-7 h-7 rounded flex items-center justify-center text-zinc-500 hover:bg-white/5 transition-colors duration-200"
+                  className="w-7 h-7 rounded flex items-center justify-center text-zinc-500 hover:bg-zinc-100 transition-colors duration-200"
                 >
                   <X weight="bold" size={16} />
                 </button>
@@ -77,7 +77,7 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
                   <button
                     data-testid={`zone-name-edit-${zone.id}`}
                     onClick={() => { setDraft(zone.name); setEditing(true); }}
-                    className="text-zinc-600 hover:text-white transition-colors duration-200"
+                    className="text-zinc-600 hover:text-zinc-900 transition-colors duration-200"
                     aria-label="Renommer la zone"
                   >
                     <PencilSimple size={15} />
@@ -115,7 +115,7 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
       <div className="flex items-end justify-between mt-6">
         <div>
           <p className="overline text-zinc-500">Température actuelle</p>
-          <div className="font-mono-num text-4xl font-semibold mt-1" style={{ color: active ? "#FAFAFA" : "#71717A" }}>
+          <div className="font-mono-num text-4xl font-semibold mt-1" style={{ color: active ? "#3F3F46" : "#71717A" }}>
             {zone.current_temp.toFixed(1)}<span className="text-lg text-zinc-500">°</span>
           </div>
         </div>
@@ -136,7 +136,7 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
             data-testid={`zone-temp-down-${zone.id}`}
             onClick={() => adjust(-0.5)}
             disabled={!writable}
-            className="w-9 h-9 rounded-full border border-border/70 flex items-center justify-center text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
+            className="w-9 h-9 rounded-full border border-border/70 flex items-center justify-center text-zinc-700 hover:text-zinc-900 hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
           >
             <Minus weight="bold" size={16} />
           </button>
@@ -147,7 +147,7 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
             data-testid={`zone-temp-up-${zone.id}`}
             onClick={() => adjust(0.5)}
             disabled={!writable}
-            className="w-9 h-9 rounded-full border border-border/70 flex items-center justify-center text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
+            className="w-9 h-9 rounded-full border border-border/70 flex items-center justify-center text-zinc-700 hover:text-zinc-900 hover:border-zinc-500 transition-colors duration-200 active:scale-95 disabled:opacity-30"
           >
             <Plus weight="bold" size={16} />
           </button>
