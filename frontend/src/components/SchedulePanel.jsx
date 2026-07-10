@@ -51,7 +51,7 @@ export const SchedulePanel = ({ zones, slots, onCreate, onDelete, canWrite = tru
           <Dialog open={canWrite && open} onOpenChange={setOpen}>
             {canWrite && (
               <DialogTrigger asChild>
-                <Button data-testid="add-slot-btn" className="rounded-full bg-zinc-900 text-zinc-900 hover:bg-zinc-800 font-semibold">
+                <Button data-testid="add-slot-btn" className="rounded-full bg-zinc-900 text-white hover:bg-zinc-800 font-semibold">
                   <Plus weight="bold" size={16} className="mr-1" /> Créneau
                 </Button>
               </DialogTrigger>

@@ -26,7 +26,7 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
             data-testid="sync-devices-btn"
             onClick={onSync}
             disabled={syncing}
-            className="rounded-full bg-zinc-900 text-zinc-900 hover:bg-zinc-800 font-semibold disabled:opacity-40"
+            className="rounded-full bg-zinc-900 text-white hover:bg-zinc-800 font-semibold disabled:opacity-40"
           >
             <ArrowsClockwise weight="bold" size={16} className={syncing ? "animate-spin mr-2" : "mr-2"} />
             {syncing ? "Synchronisation…" : "Synchroniser"}
