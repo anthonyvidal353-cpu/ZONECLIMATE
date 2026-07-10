@@ -9,7 +9,7 @@ import api, { formatApiErrorDetail } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -190,7 +190,7 @@ export function TuyaManager() {
         <DialogContent className="bg-[#FFFFFF] border-border/70 max-w-lg" data-testid="tuya-dialog">
           <DialogHeader>
             <DialogTitle className="font-display tracking-tight text-2xl">{editing ? "Modifier le projet" : "Ajouter un projet Tuya"}</DialogTitle>
-            <p className="text-sm text-zinc-500 flex items-center gap-1.5"><LockKey size={14} className="text-online" /> Les identifiants sont chiffrés sur le serveur.</p>
+            <DialogDescription className="text-sm text-zinc-500 flex items-center gap-1.5"><LockKey size={14} className="text-online" /> Les identifiants sont chiffrés sur le serveur.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
