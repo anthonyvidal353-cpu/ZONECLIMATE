@@ -23,6 +23,8 @@ sur une base de données simulées (mock) puis API Tuya réelle plus tard.
 - 2026-07-09 : Rebranding "ZoneClimate", masquage Tuya/SmartLife (réfs CZ- + QR codes), thème clair + accents violet (#7C3AED), confirmation suppression installation, correctifs contraste.
 - 2026-07-10 : Démarrage NON DESTRUCTIF + sauvegarde/restauration. Sauvegarde JSON auto (périodique 45s + au démarrage + à l'arrêt) dans /app/backend/data/backup.json ; restauration auto si DB vide au démarrage. Onglet Admin « Sauvegarde » (télécharger / sauvegarder maintenant / restaurer un fichier). Endpoints /api/admin/backup, /api/admin/backup/save, /api/admin/restore (super_admin). Tests backend 16/16 (iteration_11).
 - 2026-07-10 : BUG FIX B — la découverte d'appareils (appairage simulé) génère désormais le nombre EXACT d'appareils choisi par l'utilisateur (param count 1..10 + category thermostat/gainable) au lieu d'un aléatoire 1-3. UI : sélecteur type + nombre dans PairingPanel.
+- 2026-07-10 : Correctif création — les zones sans nom sont auto-nommées « Zone N » (dédoublonnées) pour ne perdre aucun thermostat appairé. Tests 100% (iteration_12).
+- 2026-07-10 : P2 (1/2/3) — Historique de température par zone (recharts, données simulées, plages 24/48/72h, endpoint GET /installations/{iid}/history) ; bannière d'alertes batterie faible (<=20%) / hors-ligne ; modèles de logement (Studio/T2/T3/Maison) dans l'assistant de création. Tests backend 10/10 + frontend OK (iteration_12).
 
 ## Comptes de démo
 Voir /app/memory/test_credentials.md (admin/moderateur/installateur/client/invite).
@@ -30,8 +32,8 @@ Voir /app/memory/test_credentials.md (admin/moderateur/installateur/client/invit
 ## Backlog / prochaines étapes
 - P1 : Brancher l'API Tuya Cloud réelle (Access ID/Secret) à la place du mock (produits, températures, vrais codes défauts DP).
 - P1 : Application automatique des plages horaires (scheduler backend) sur les consignes.
-- P2 : Scanner QR code caméra pour l'installateur ; modèles de logement (T2/T3/Maison) dans l'assistant de création.
-- P2 : Édition des créneaux ; historique/graphiques de température (recharts) ; alertes batterie/hors-ligne.
+- P2 : Scanner QR code caméra pour l'installateur (item 4 du lot P2, reporté à la demande de l'utilisateur).
+- P2 : Édition des créneaux ; alertes batterie/hors-ligne (fait) ; historique (fait).
 - P2 : Découpage server.py en modules (auth/installations/climate/invitations/backup) ; migration lifespan FastAPI ; brute-force lockout login.
 - P3 (tech debt, remonté par testing agent) : restore_backup sans transaction (risque de wipe partiel si crash en cours) — envisager transaction Mongo ou DB fantôme + swap.
 

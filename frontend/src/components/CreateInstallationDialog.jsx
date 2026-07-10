@@ -90,14 +90,19 @@ export const CreateInstallationDialog = ({ onCreated }) => {
 
   const submit = async () => {
     if (!name.trim()) return toast.error("Nom de l'installation requis");
-    // Nomme automatiquement les zones sans nom (« Zone 1 », « Zone 2 »…)
-    // pour ne jamais perdre un thermostat appairé.
+    // Nomme automatiquement les zones sans nom (« Zone 1 », « Zone 2 »…),
+    // en évitant toute collision avec les noms déjà saisis.
+    const used = new Set(zones.map((z) => z.name.trim()).filter(Boolean));
     let counter = 0;
+    const nextAutoName = () => {
+      let candidate;
+      do { counter += 1; candidate = `Zone ${counter}`; } while (used.has(candidate));
+      used.add(candidate);
+      return candidate;
+    };
     const cleanZones = zones.map((z) => {
       const nm = z.name.trim();
-      if (nm) return { ...z, name: nm };
-      counter += 1;
-      return { ...z, name: `Zone ${counter}` };
+      return { ...z, name: nm || nextAutoName() };
     });
     if (cleanZones.length === 0) return toast.error("Ajoutez au moins une zone");
     if (!cleanZones.some((z) => z.master)) cleanZones[0].master = true;
