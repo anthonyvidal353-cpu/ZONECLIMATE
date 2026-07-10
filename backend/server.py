@@ -44,7 +44,7 @@ DATA_DIR = ROOT_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 BACKUP_FILE = DATA_DIR / "backup.json"
 BACKUP_COLLECTIONS = ["users", "installations", "memberships", "system",
-                      "zones", "devices", "pairing", "schedule", "invitations", "tuya_projects"]
+                      "zones", "devices", "pairing", "schedule", "invitations", "tuya_projects", "catalog"]
 BACKUP_INTERVAL_SEC = 45
 
 
@@ -333,6 +333,13 @@ class AssociatePairing(BaseModel):
     as_gainable: bool = False
 
 
+class AssociateQR(BaseModel):
+    code: str
+    zone_id: Optional[str] = None
+    new_zone_name: Optional[str] = None
+    new_zone_icon: str = "house"
+
+
 # ----------------------------- Seeding -----------------------------
 ZONES_DEF = [
     ("Salon", "couch", 22.5, 22.0),
@@ -361,7 +368,7 @@ async def seed_installation_equipment(installation_id: str, gainable=None, zones
             master = zs.master and not master_seen
             if master:
                 master_seen = True
-            z = Zone(installation_id=installation_id, name=zs.name, icon=zs.icon,
+            z = Zone(installation_id=installation_id, name=(zs.name.strip() or f"Zone {i + 1}"), icon=zs.icon,
                      current_temp=21.0, setpoint=21.0, order=i, is_master=master)
             zones.append(z.model_dump())
     else:
@@ -699,6 +706,71 @@ async def test_tuya_project(pid: str, user: dict = Depends(require_roles("super_
     return result
 
 
+# ----------------------------- Catalogue QR (Admin: super_admin, moderator) -----------------------------
+def public_catalog(c: dict) -> dict:
+    return {
+        "id": c["id"],
+        "code": c["code"],
+        "name": c.get("name"),
+        "category": c.get("category"),
+        "online": c.get("online", True),
+        "assigned": c.get("assigned", False),
+        "qr": f"ZONECLIMATE:{c['code']}",
+        "created_at": c.get("created_at"),
+    }
+
+
+async def _mark_catalog_assignment():
+    # Marque les entrées catalogue déjà associées à une installation
+    used = set()
+    async for d in db.devices.find({"tuya_id": {"$ne": None}}, {"tuya_id": 1}):
+        used.add(d["tuya_id"])
+    return used
+
+
+@api_router.post("/admin/catalog/discover")
+async def catalog_discover(user: dict = Depends(require_roles("super_admin", "moderator"))):
+    client = await get_active_tuya_client()
+    if client is None:
+        raise HTTPException(400, "Aucun projet Tuya actif. Configurez-en un d'abord.")
+    proj = await db.tuya_projects.find_one({"active": True})
+    try:
+        tuya_devices = await fetch_all_tuya_devices(client)
+    except tuya.TuyaError as e:
+        raise HTTPException(502, f"Erreur cloud : {e}")
+    except Exception:  # noqa: BLE001
+        raise HTTPException(502, "Connexion au cloud impossible. Vérifiez le projet et la liste blanche d'IP.")
+    for td in tuya_devices:
+        tid = td.get("id")
+        if not tid:
+            continue
+        cat = map_tuya_category(td.get("category"))
+        online = td.get("is_online", td.get("online", True))
+        existing = await db.catalog.find_one({"tuya_id": tid})
+        if existing:
+            await db.catalog.update_one({"tuya_id": tid},
+                                        {"$set": {"name": td.get("name") or existing.get("name"),
+                                                  "category": cat, "online": online}})
+        else:
+            await db.catalog.insert_one({
+                "id": str(uuid.uuid4()), "code": gen_ref(), "tuya_id": tid,
+                "name": td.get("name") or ("Gainable" if cat == "gainable" else "Thermostat"),
+                "category": cat, "online": online,
+                "project_id": proj["id"] if proj else None, "created_at": now_iso(),
+            })
+    await write_backup_file()
+    used = await _mark_catalog_assignment()
+    docs = await db.catalog.find({}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    return [public_catalog({**c, "assigned": c["tuya_id"] in used}) for c in docs]
+
+
+@api_router.get("/admin/catalog")
+async def list_catalog(user: dict = Depends(require_roles("super_admin", "moderator"))):
+    used = await _mark_catalog_assignment()
+    docs = await db.catalog.find({}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    return [public_catalog({**c, "assigned": c["tuya_id"] in used}) for c in docs]
+
+
 # ----------------------------- Installations -----------------------------
 async def enrich_installation(inst: dict) -> dict:
     out = dict(inst)
@@ -992,23 +1064,28 @@ async def get_active_tuya_client():
     return tuya.TuyaClient(p["endpoint"], p["access_id"], tuya.decrypt_secret(p["access_secret_enc"]))
 
 
+async def fetch_all_tuya_devices(client):
+    await client.connect()
+    devices = []
+    last_key = None
+    for _ in range(10):  # jusqu'à 200 appareils (10 pages de 20)
+        result = await client.list_devices(page_size=20, last_row_key=last_key)
+        page = result.get("list", []) if isinstance(result, dict) else result
+        devices.extend(page)
+        if not isinstance(result, dict) or not result.get("has_more"):
+            break
+        last_key = result.get("last_row_key")
+        if not last_key:
+            break
+    return devices
+
+
 async def discover_tuya_devices(iid: str):
     client = await get_active_tuya_client()
     if client is None:
         raise HTTPException(400, "Aucun projet Tuya actif. Configurez-en un dans l'espace Super Admin.")
     try:
-        await client.connect()
-        tuya_devices = []
-        last_key = None
-        for _ in range(10):  # jusqu'à 200 appareils (10 pages de 20)
-            result = await client.list_devices(page_size=20, last_row_key=last_key)
-            page = result.get("list", []) if isinstance(result, dict) else result
-            tuya_devices.extend(page)
-            if not isinstance(result, dict) or not result.get("has_more"):
-                break
-            last_key = result.get("last_row_key")
-            if not last_key:
-                break
+        tuya_devices = await fetch_all_tuya_devices(client)
     except tuya.TuyaError as e:
         raise HTTPException(502, f"Erreur cloud : {e}")
     except Exception:  # noqa: BLE001
@@ -1124,6 +1201,51 @@ async def ignore_pairing(iid: str, pid: str, user: dict = Depends(get_current_us
     if res.deleted_count == 0:
         raise HTTPException(404, "Introuvable")
     return {"ok": True}
+
+
+@api_router.post("/installations/{iid}/associate-qr")
+async def associate_qr(iid: str, payload: AssociateQR, user: dict = Depends(get_current_user)):
+    # Association SÛRE par QR code : le code identifie précisément le bon appareil.
+    await get_installation_for(user, iid, write=True)
+    code = (payload.code or "").strip().upper().replace("ZONECLIMATE:", "")
+    entry = await db.catalog.find_one({"code": code})
+    if not entry:
+        raise HTTPException(404, "QR code inconnu. Cet appareil n'a pas été enregistré par l'installateur.")
+    # Empêcher une double association du même appareil dans cette installation
+    dup = await db.devices.find_one({"installation_id": iid, "tuya_id": entry["tuya_id"]})
+    if dup:
+        raise HTTPException(400, "Cet appareil est déjà associé à cette installation.")
+
+    device = Device(installation_id=iid, name=entry["name"], category=entry["category"],
+                    product_id=entry["tuya_id"], ref_code=entry["code"], tuya_id=entry["tuya_id"])
+
+    if entry["category"] == "gainable":
+        master = await db.zones.find_one({"installation_id": iid, "is_master": True})
+        device.zone_id = master["id"] if master else None
+        await db.devices.insert_one(device.model_dump())
+    elif payload.new_zone_name:
+        last = await db.zones.find({"installation_id": iid}).sort("order", -1).to_list(1)
+        order = (last[0]["order"] + 1) if last else 0
+        zone = Zone(installation_id=iid, name=payload.new_zone_name, icon=payload.new_zone_icon, order=order)
+        device.zone_id = zone.id
+        zone.device_id = device.id
+        await db.zones.insert_one(zone.model_dump())
+        await db.devices.insert_one(device.model_dump())
+    elif payload.zone_id:
+        zone = await db.zones.find_one({"installation_id": iid, "id": payload.zone_id})
+        if not zone:
+            raise HTTPException(404, "Zone introuvable")
+        device.zone_id = payload.zone_id
+        await db.devices.insert_one(device.model_dump())
+        await db.zones.update_one({"id": payload.zone_id}, {"$set": {"device_id": device.id}})
+    else:
+        raise HTTPException(400, "Choisissez une zone ou créez-en une")
+
+    zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
+    dev = device.model_dump()
+    dev.pop("product_id", None)
+    dev.pop("tuya_id", None)
+    return {"device": dev, "zones": [Zone(**z).model_dump() for z in zones]}
 
 
 # ----------------------------- Simulation -----------------------------

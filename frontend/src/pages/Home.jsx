@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Ticket, House, Crown, Wrench, ArrowRight, Users, Trash, ShieldCheck, Spinner, DownloadSimple, UploadSimple, FloppyDisk, PlugsConnected } from "@phosphor-icons/react";
+import { Plus, Ticket, House, Crown, Wrench, ArrowRight, Users, Trash, ShieldCheck, Spinner, DownloadSimple, UploadSimple, FloppyDisk, PlugsConnected, QrCode } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
 import api, { formatApiErrorDetail } from "../lib/api";
 import { useAuth, ROLE_LABELS } from "../context/AuthContext";
 import { AppShell } from "../components/AppShell";
 import { CreateInstallationDialog } from "../components/CreateInstallationDialog";
-import { TuyaManager } from "../components/TuyaManager";import { Button } from "../components/ui/button";
+import { TuyaManager } from "../components/TuyaManager";
+import { CatalogManager } from "../components/CatalogManager";import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "../components/ui/dialog";
@@ -241,6 +242,7 @@ export default function Home() {
       {isAdminView && (
         <div className="flex gap-1 border border-border/60 bg-[#FFFFFF] rounded-full p-1 w-fit mb-6">
           {[["installations", "Installations", House], ["users", "Utilisateurs", Users],
+            ...(["super_admin", "moderator"].includes(user.role) ? [["catalog", "Catalogue QR", QrCode]] : []),
             ...(user.role === "super_admin" ? [["backup", "Sauvegarde", ShieldCheck], ["tuya", "API Tuya", PlugsConnected]] : [])].map(([k, l, Icon]) => (
             <button key={k} data-testid={`admintab-${k}`} onClick={() => setTab(k)}
               className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors duration-200"
@@ -305,6 +307,8 @@ export default function Home() {
       )}
 
       {isAdminView && tab === "users" && <UsersManager />}
+
+      {["super_admin", "moderator"].includes(user.role) && tab === "catalog" && <CatalogManager />}
 
       {user.role === "super_admin" && tab === "backup" && <BackupManager />}
 

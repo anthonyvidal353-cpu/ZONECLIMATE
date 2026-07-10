@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 16 — QR catalog + associate-qr tested. Backend 100% green (15/15 pytest). Frontend catalog admin tab OK. CRITICAL UI BUG: clicking qr-manual-toggle in QrAssociateDialog throws uncaught React 'removeChild' error, blocking the entire manual fallback flow (the only viable path in test env without camera).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "QrAssociateDialog.jsx",
+        "issue": "Uncaught React runtime error 'Failed to execute removeChild on Node: The node to be removed is not a child of this node' fires when clicking qr-manual-toggle. Manual input UI never renders => qr-manual-input never appears => whole QR association flow (manual fallback) is unusable. Camera path also cannot be used in the test/preview env. Root cause: onClick={() => { stopScanner(); setManual(true); }} does not await stopScanner(). Html5Qrcode injects <video>/<canvas> children into #qr-reader-region; setManual(true) synchronously re-renders and React tries to unmount that div while html5-qrcode is still asynchronously clearing children => DOM tree becomes inconsistent with React's virtual DOM.",
+        "selector": "[data-testid=qr-manual-toggle]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "QR manual associate",
+        "issue": "Cannot exercise end-to-end because manual-toggle crash aborts the flow. Backend endpoint itself works (proven via pytest).",
+        "affected_selectors": ["[data-testid=qr-manual-toggle]", "[data-testid=qr-manual-input]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_qr_catalog_and_associate.py",
+    "/app/test_reports/pytest/iter16_qr.xml"
+  ],
+  "action_items": [
+    "Fix QrAssociateDialog.jsx line 119 onClick: await stopScanner() before setManual(true). Simplest fix: onClick={async () => { await stopScanner(); setManual(true); }}. Alternative (safer): always keep the reader <div id={READER_ID}> mounted in the DOM (only visually hidden via CSS when manual=true) so React never unmounts a subtree that html5-qrcode is still manipulating.",
+    "Consider a similar await pattern in the useEffect cleanup at line 58 to avoid stray unmount races.",
+    "Also start-scanner useEffect calls startScanner even when manual is toggled inside the same render — after fix, verify the camera-off path is clean."
+  ],
+  "critical_code_review_comments": [
+    "server.py associate-qr correctly strips 'ZONECLIMATE:' prefix, tolerates absence, forces gainable to master zone, rejects duplicates and unknown codes, hides tuya_id/product_id from response. Good.",
+    "public_catalog hides tuya_id (verified by test). Both /api/admin/catalog and /api/admin/catalog/discover gated to super_admin+moderator (verified: client & installer get 403).",
+    "QrAssociateDialog: stopScanner is async but is fired-and-forgotten inside a synchronous onClick that immediately toggles React state — direct cause of the removeChild crash. Requires await."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_qr_catalog_and_associate.py (new)"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "50% (catalog tab OK, associate flow blocked by React crash)"},
+  "test_credentials": "admin@climazone.fr / Admin1234! ; moderateur@climazone.fr / Demo1234! ; installateur@demo.fr / Demo1234! ; client@demo.fr / Demo1234!",
+  "seed_data_creation": "Created & deleted TEST_QR_*, TEST_QR_NZ_*, TEST_QR_MZ_*, TEST_QRUI_*, TEST_QRUI2_* installations. All cleaned up. Catalog test entries CZ-QRTEST01/CZ-QRTEST02 present and untouched.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend fully validated. After main agent fixes QrAssociateDialog manual-toggle crash, retest ONLY the frontend manual QR flow: open installation → Appareils → open-qr-scan-btn → qr-manual-toggle → qr-manual-input('CZ-QRTEST01') → qr-manual-submit → qr-zone-select → qr-associate-submit. Should end with a success toast and a new device. Use installateur@demo.fr on his own TEST_* installation.",
+  "rca of the issue": "Bug: qr-manual-toggle button triggers 'Failed to execute removeChild on Node'. Reproduction: login installateur@demo.fr, open any writable installation → Appareils tab → click open-qr-scan-btn → click qr-manual-toggle. Result: React overlay 'Uncaught runtime errors' (dev) and manual-input never mounts. Cause: html5-qrcode injects DOM children into #qr-reader-region during startScanner; when setManual(true) fires before the async stop/clear completes, React unmounts the reader div, and html5-qrcode later tries to remove children that are no longer part of that node. Mitigation: await stopScanner() in the onClick, or keep the reader div mounted at all times (hidden via CSS when manual=true)."
+}

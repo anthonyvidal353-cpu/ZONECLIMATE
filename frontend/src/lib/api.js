@@ -49,6 +49,10 @@ export const api = {
   deleteTuyaProject: (id) => http.delete(`/admin/tuya/projects/${id}`).then((r) => r.data),
   activateTuyaProject: (id) => http.post(`/admin/tuya/projects/${id}/activate`).then((r) => r.data),
   testTuyaProject: (id) => http.post(`/admin/tuya/projects/${id}/test`).then((r) => r.data),
+  // Catalogue QR (admin) + association par QR
+  catalogDiscover: () => http.post("/admin/catalog/discover").then((r) => r.data),
+  listCatalog: () => http.get("/admin/catalog").then((r) => r.data),
+  associateQR: (iid, data) => http.post(`/installations/${iid}/associate-qr`, data).then((r) => r.data),
   // installations
   listInstallations: () => http.get("/installations").then((r) => r.data),
   createInstallation: (payload) => http.post("/installations", payload).then((r) => r.data),

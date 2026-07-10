@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
-import { MagnifyingGlass, Wind, Thermometer, Plus, X, CircleNotch, WifiHigh } from "@phosphor-icons/react";
+import { MagnifyingGlass, Wind, Thermometer, Plus, X, CircleNotch, WifiHigh, QrCode } from "@phosphor-icons/react";
 import { QRCodeSVG } from "qrcode.react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api, { formatApiErrorDetail } from "../lib/api";
+import { QrAssociateDialog } from "./QrAssociateDialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -16,6 +17,7 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
   const [scanCount, setScanCount] = useState(1);
   const [scanCategory, setScanCategory] = useState("thermostat");
   const [mode, setMode] = useState("real"); // real (Tuya) | sim
+  const [qrOpen, setQrOpen] = useState(false);
 
   const defaultsFor = (list) => {
     const c = {};
@@ -91,6 +93,24 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
 
   return (
     <div className="border border-border/60 bg-[#FFFFFF] rounded-lg">
+      <QrAssociateDialog open={qrOpen} onOpenChange={setQrOpen} iid={iid} zones={zones} onAssociated={onAssociated} />
+
+      {/* Association par QR — méthode recommandée, sans erreur */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-6 border-b border-border/50 bg-heat/5">
+        <div className="flex items-start gap-3">
+          <div className="w-11 h-11 rounded-full bg-heat/15 flex items-center justify-center shrink-0">
+            <QrCode weight="duotone" size={22} className="text-heat" />
+          </div>
+          <div>
+            <h2 className="font-display text-xl font-bold tracking-tight">Associer par QR code</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">Scannez l'étiquette collée sur l'appareil : l'association est garantie sans erreur.</p>
+          </div>
+        </div>
+        <Button data-testid="open-qr-scan-btn" onClick={() => setQrOpen(true)} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold shrink-0 h-11">
+          <QrCode weight="bold" size={18} className="mr-2" /> Scanner un QR code
+        </Button>
+      </div>
+
       <div className="flex flex-col gap-4 p-6 border-b border-border/50">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
