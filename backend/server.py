@@ -1094,12 +1094,14 @@ async def discover_tuya_devices(iid: str):
         raise HTTPException(400, "Aucun projet Tuya configuré. Ajoutez-en un dans Paramètres.")
     tuya_devices = []
     errors = []
+    succeeded = 0
     for p, client in projects:
         try:
             tuya_devices.extend(await fetch_all_tuya_devices(client))
+            succeeded += 1
         except Exception:  # noqa: BLE001
             errors.append(p["name"])
-    if not tuya_devices and errors:
+    if succeeded == 0 and errors:
         raise HTTPException(502, f"Connexion impossible aux projets : {', '.join(errors)}. Vérifiez les identifiants et la liste blanche d'IP.")
 
     known = set()
