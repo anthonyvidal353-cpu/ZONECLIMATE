@@ -99,8 +99,11 @@ class TuyaClient:
         self.access_token = result["access_token"]
         return result
 
-    async def list_devices(self, page_size: int = 20):
-        return await self._request("GET", f"/v2.0/cloud/thing/device?page_size={page_size}")
+    async def list_devices(self, page_size: int = 20, last_row_key: str = None):
+        path = f"/v2.0/cloud/thing/device?page_size={min(page_size, 20)}"
+        if last_row_key:
+            path += f"&last_row_key={last_row_key}"
+        return await self._request("GET", path)
 
     async def get_status(self, device_id: str):
         return await self._request("GET", f"/v1.0/devices/{device_id}/status")

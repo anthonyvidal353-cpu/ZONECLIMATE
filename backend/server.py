@@ -223,6 +223,7 @@ class Device(BaseModel):
     category: str
     product_id: str               # interne (fournisseur) - non exposé aux utilisateurs
     ref_code: Optional[str] = None  # référence publique associée au QR code
+    tuya_id: Optional[str] = None   # ID de l'appareil dans le cloud (interne)
     online: bool = True
     battery: Optional[int] = None
     signal: int = 100
@@ -316,6 +317,8 @@ class Pairing(BaseModel):
     suggested_name: str
     product_id: str               # ID Tuya interne (résolu par ClimaZone)
     ref_code: str
+    tuya_id: Optional[str] = None  # ID de l'appareil dans le cloud (interne)
+    source: str = "sim"           # sim | tuya
     battery: Optional[int] = None
     signal: int = 90
     status: str = "discovered"
@@ -951,6 +954,7 @@ async def public_devices(iid: str):
             d["ref_code"] = gen_ref()
             await db.devices.update_one({"id": d["id"]}, {"$set": {"ref_code": d["ref_code"]}})
         d.pop("product_id", None)  # ne jamais exposer l'ID fournisseur
+        d.pop("tuya_id", None)     # ne jamais exposer l'ID cloud
         out.append(d)
     return out
 
@@ -978,18 +982,84 @@ def public_pairing(p: dict) -> dict:
     p = dict(p)
     p.pop("_id", None)
     p.pop("product_id", None)  # l'ID fournisseur reste interne
+    p.pop("tuya_id", None)     # l'ID cloud reste interne
     return p
 
 
 NEW_THERMO_NAMES = ["Chambre amis", "Dressing", "Buanderie", "Entrée", "Mezzanine", "Véranda", "Garage", "Cellier"]
 
+# Correspondance des catégories Tuya -> nos catégories
+TUYA_GAINABLE_CATS = {"kt", "ktkzq", "ktqcztc", "ldcg", "qjsp"}
+
+
+def map_tuya_category(cat: str) -> str:
+    return "gainable" if (cat or "").lower() in TUYA_GAINABLE_CATS else "thermostat"
+
+
+async def get_active_tuya_client():
+    p = await db.tuya_projects.find_one({"active": True})
+    if not p:
+        return None
+    return tuya.TuyaClient(p["endpoint"], p["access_id"], tuya.decrypt_secret(p["access_secret_enc"]))
+
+
+async def discover_tuya_devices(iid: str):
+    client = await get_active_tuya_client()
+    if client is None:
+        raise HTTPException(400, "Aucun projet Tuya actif. Configurez-en un dans l'espace Super Admin.")
+    try:
+        await client.connect()
+        tuya_devices = []
+        last_key = None
+        for _ in range(10):  # jusqu'à 200 appareils (10 pages de 20)
+            result = await client.list_devices(page_size=20, last_row_key=last_key)
+            page = result.get("list", []) if isinstance(result, dict) else result
+            tuya_devices.extend(page)
+            if not isinstance(result, dict) or not result.get("has_more"):
+                break
+            last_key = result.get("last_row_key")
+            if not last_key:
+                break
+    except tuya.TuyaError as e:
+        raise HTTPException(502, f"Erreur cloud : {e}")
+    except Exception:  # noqa: BLE001
+        raise HTTPException(502, "Connexion au cloud impossible. Vérifiez le projet et la liste blanche d'IP.")
+
+    # IDs déjà connus (associés ou en attente) pour éviter les doublons
+    known = set()
+    async for d in db.devices.find({"tuya_id": {"$ne": None}}, {"tuya_id": 1}):
+        known.add(d["tuya_id"])
+    async for d in db.pairing.find({"installation_id": iid, "status": "discovered", "tuya_id": {"$ne": None}}, {"tuya_id": 1}):
+        known.add(d["tuya_id"])
+
+    added = 0
+    for td in tuya_devices:
+        tid = td.get("id")
+        if not tid or tid in known:
+            continue
+        cat = map_tuya_category(td.get("category"))
+        online = td.get("is_online", td.get("online", True))
+        p = Pairing(
+            installation_id=iid, category=cat,
+            suggested_name=td.get("name") or ("Gainable" if cat == "gainable" else "Thermostat"),
+            product_id=tid, ref_code=gen_ref(), tuya_id=tid, source="tuya",
+            signal=99 if online else 0,
+        )
+        await db.pairing.insert_one(p.model_dump())
+        known.add(tid)
+        added += 1
+    docs = await db.pairing.find({"installation_id": iid, "status": "discovered"}).to_list(50)
+    return [public_pairing(d) for d in docs]
+
 
 @api_router.post("/installations/{iid}/discover")
 async def discover_devices(iid: str, count: int = 1, category: str = "thermostat",
-                           user: dict = Depends(get_current_user)):
-    # ClimaZone interroge Tuya pour découvrir les appareils en mode appairage (simulé).
-    # L'utilisateur indique combien d'appareils il a physiquement mis en appairage.
+                           source: str = "sim", user: dict = Depends(get_current_user)):
+    # source=tuya : découverte RÉELLE via le projet Tuya actif.
+    # source=sim  : découverte simulée (l'utilisateur indique le nombre/type).
     await get_installation_for(user, iid, write=True)
+    if source == "tuya":
+        return await discover_tuya_devices(iid)
     if category not in ("thermostat", "gainable"):
         category = "thermostat"
     count = max(1, min(count, 10))
@@ -1023,6 +1093,7 @@ async def associate_pairing(iid: str, pid: str, payload: AssociatePairing, user:
 
     device = Device(installation_id=iid, name=p["suggested_name"], category=p["category"],
                     product_id=p["product_id"], ref_code=p["ref_code"],
+                    tuya_id=p.get("tuya_id"),
                     battery=p.get("battery"), signal=p.get("signal", 90))
 
     if p["category"] == "gainable" or payload.as_gainable:
@@ -1053,6 +1124,7 @@ async def associate_pairing(iid: str, pid: str, payload: AssociatePairing, user:
     zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
     dev = device.model_dump()
     dev.pop("product_id", None)
+    dev.pop("tuya_id", None)
     return {"device": dev, "zones": [Zone(**z).model_dump() for z in zones]}
 
 

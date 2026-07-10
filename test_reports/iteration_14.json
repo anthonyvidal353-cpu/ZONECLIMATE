@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 14: Validated REAL Tuya discovery (source=tuya), SIM retrocompat, security (no product_id/tuya_id leak), associate flow and PairingPanel UI. Found and FIXED a real security bug: associate_pairing returned tuya_id in device response.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_discover_tuya_real.py",
+    "/app/test_reports/pytest/discover_tuya_real.xml"
+  ],
+  "action_items": [
+    "Verify the fix applied to associate_pairing (server.py L1127: added dev.pop('tuya_id', None)) is acceptable and add explicit unit protection if desired."
+  ],
+  "critical_code_review_comments": [
+    "SECURITY BUG (FIXED by testing agent): server.py associate_pairing was leaking 'tuya_id' in the returned device object — it only popped 'product_id'. Added dev.pop('tuya_id', None). Requirement explicitly asked device response to hide both.",
+    "public_pairing and public_devices correctly strip product_id + tuya_id.",
+    "discover_tuya_devices maps HTTP 502 on cloud errors (never 500), respects Tuya page_size=20 limit, deduplicates by known tuya_id.",
+    "Backend endpoint /api/admin/tuya/projects (not /admin/tuya-projects) — noted for future agents."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (fixed tuya_id leak in associate_pairing)",
+    "/app/backend/tests/test_discover_tuya_real.py (new pytest file, 8 tests)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100%"},
+  "test_credentials": "admin@climazone.fr / Admin1234! ; installateur@demo.fr / Demo1234!",
+  "seed_data_creation": "Created TEST_DiscoverTuya installation via installer fixture and cleaned up via yield/DELETE. No touch to 'Maison Client Démo', 'ecozone', 'Test' or the active Tuya project.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Live Tuya cloud IS reachable and IP is whitelisted. Real discovery now returns 200 with a list — currently returns 1 device ('Thermostat Entrée' CZ-AABD90CD) linked in the SmartLife account (not empty as originally stated). Toast/UI messaging works. PairingPanel data-testids: pairing-mode-real, pairing-mode-sim, scan-category-select, scan-count-input, scan-devices-btn — all functional; category/count correctly hidden in real mode, shown in sim mode.",
+  "rca of the issue": "Bug RCA — tuya_id leak in associate response: In server.py associate_pairing (~L1125), the code only popped 'product_id' from the device dict before returning. Because Device includes tuya_id (needed internally to link cloud state), it was serialized in the response. Fix: added dev.pop('tuya_id', None) alongside product_id. Reproduction: POST /installations/{iid}/pairing/{pid}/associate on any pairing (even sim, since Device model always has tuya_id key) — response.device contained 'tuya_id' (null for sim, real cloud ID for tuya-sourced pairing). Post-fix: field is absent."
+}
