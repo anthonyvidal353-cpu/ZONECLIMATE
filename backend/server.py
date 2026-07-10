@@ -5,6 +5,8 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 import os
+import json
+import asyncio
 import logging
 import random
 import uuid
@@ -33,6 +35,71 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 ROLES = ["super_admin", "moderator", "installer", "client", "guest"]
+
+# ----------------------------- Backup / Restore -----------------------------
+DATA_DIR = ROOT_DIR / "data"
+DATA_DIR.mkdir(exist_ok=True)
+BACKUP_FILE = DATA_DIR / "backup.json"
+BACKUP_COLLECTIONS = ["users", "installations", "memberships", "system",
+                      "zones", "devices", "pairing", "schedule", "invitations"]
+BACKUP_INTERVAL_SEC = 45
+
+
+def _encode_doc(doc):
+    out = {}
+    for k, v in doc.items():
+        if isinstance(v, ObjectId):
+            out[k] = {"__oid__": str(v)}
+        elif isinstance(v, datetime):
+            out[k] = {"__dt__": v.isoformat()}
+        else:
+            out[k] = v
+    return out
+
+
+def _decode_doc(doc):
+    out = {}
+    for k, v in doc.items():
+        if isinstance(v, dict) and "__oid__" in v:
+            out[k] = ObjectId(v["__oid__"])
+        elif isinstance(v, dict) and "__dt__" in v:
+            out[k] = datetime.fromisoformat(v["__dt__"])
+        else:
+            out[k] = v
+    return out
+
+
+async def export_backup() -> dict:
+    data = {"_meta": {"exported_at": now_iso(), "app": "ZoneClimate"}}
+    for col in BACKUP_COLLECTIONS:
+        docs = await db[col].find({}).to_list(10000)
+        data[col] = [_encode_doc(d) for d in docs]
+    return data
+
+
+async def write_backup_file():
+    data = await export_backup()
+    tmp = BACKUP_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False))
+    tmp.replace(BACKUP_FILE)  # écriture atomique
+    return data
+
+
+async def restore_backup(data: dict):
+    for col in BACKUP_COLLECTIONS:
+        docs = data.get(col, [])
+        await db[col].delete_many({})
+        if docs:
+            await db[col].insert_many([_decode_doc(d) for d in docs])
+
+
+async def periodic_backup():
+    while True:
+        await asyncio.sleep(BACKUP_INTERVAL_SEC)
+        try:
+            await write_backup_file()
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Sauvegarde périodique échouée: {e}")
 
 
 def now_iso():
@@ -471,6 +538,28 @@ async def delete_user(user_id: str, user: dict = Depends(require_roles("super_ad
     return {"ok": True}
 
 
+# ----------------------------- Sauvegarde (Admin) -----------------------------
+@api_router.get("/admin/backup")
+async def download_backup(user: dict = Depends(require_roles("super_admin"))):
+    return await export_backup()
+
+
+@api_router.post("/admin/backup/save")
+async def save_backup_now(user: dict = Depends(require_roles("super_admin"))):
+    await write_backup_file()
+    return {"ok": True, "saved_at": now_iso()}
+
+
+@api_router.post("/admin/restore")
+async def upload_restore(data: dict, user: dict = Depends(require_roles("super_admin"))):
+    if not isinstance(data, dict) or "users" not in data:
+        raise HTTPException(400, "Fichier de sauvegarde invalide")
+    await restore_backup(data)
+    await write_backup_file()
+    counts = {c: await db[c].count_documents({}) for c in BACKUP_COLLECTIONS}
+    return {"ok": True, "restored_at": now_iso(), "counts": counts}
+
+
 # ----------------------------- Installations -----------------------------
 async def enrich_installation(inst: dict) -> dict:
     out = dict(inst)
@@ -749,26 +838,24 @@ NEW_THERMO_NAMES = ["Chambre amis", "Dressing", "Buanderie", "Entrée", "Mezzani
 
 
 @api_router.post("/installations/{iid}/discover")
-async def discover_devices(iid: str, user: dict = Depends(get_current_user)):
-    # ClimaZone interroge Tuya pour découvrir les appareils en mode appairage (simulé)
+async def discover_devices(iid: str, count: int = 1, category: str = "thermostat",
+                           user: dict = Depends(get_current_user)):
+    # ClimaZone interroge Tuya pour découvrir les appareils en mode appairage (simulé).
+    # L'utilisateur indique combien d'appareils il a physiquement mis en appairage.
     await get_installation_for(user, iid, write=True)
-    pending = await db.pairing.count_documents({"installation_id": iid, "status": "discovered"})
-    if pending == 0:
-        has_gainable = await db.devices.find_one({"installation_id": iid, "category": "gainable"})
-        n = random.randint(1, 3)
-        for _ in range(n):
-            is_gainable = (not has_gainable) and random.random() < 0.4
-            cat = "gainable" if is_gainable else "thermostat"
-            p = Pairing(
-                installation_id=iid, category=cat,
-                suggested_name=("Gainable" if cat == "gainable" else f"Thermostat {random.choice(NEW_THERMO_NAMES)}"),
-                product_id=gen_product_id(cat), ref_code=gen_ref(),
-                battery=(random.randint(70, 100) if cat == "thermostat" else None),
-                signal=random.randint(70, 99),
-            )
-            await db.pairing.insert_one(p.model_dump())
-            if is_gainable:
-                has_gainable = True
+    if category not in ("thermostat", "gainable"):
+        category = "thermostat"
+    count = max(1, min(count, 10))
+    for _ in range(count):
+        cat = category
+        p = Pairing(
+            installation_id=iid, category=cat,
+            suggested_name=("Gainable" if cat == "gainable" else f"Thermostat {random.choice(NEW_THERMO_NAMES)}"),
+            product_id=gen_product_id(cat), ref_code=gen_ref(),
+            battery=(random.randint(70, 100) if cat == "thermostat" else None),
+            signal=random.randint(70, 99),
+        )
+        await db.pairing.insert_one(p.model_dump())
     docs = await db.pairing.find({"installation_id": iid, "status": "discovered"}).to_list(50)
     return [public_pairing(d) for d in docs]
 
@@ -903,9 +990,32 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    # Démarrage non destructif : si la base est vide mais qu'une sauvegarde existe,
+    # on restaure les données au lieu de recréer une démo (protection contre les mises à jour).
+    users_count = await db.users.count_documents({})
+    if users_count == 0 and BACKUP_FILE.exists():
+        try:
+            data = json.loads(BACKUP_FILE.read_text())
+            await restore_backup(data)
+            logger.info("Base restaurée depuis la sauvegarde (backup.json)")
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Échec de la restauration depuis backup.json: {e}")
     await seed_all()
+    try:
+        await write_backup_file()
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Sauvegarde initiale échouée: {e}")
+    app.state.backup_task = asyncio.create_task(periodic_backup())
 
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    try:
+        await write_backup_file()
+        logger.info("Sauvegarde finale écrite avant arrêt")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Sauvegarde à l'arrêt échouée: {e}")
+    task = getattr(app.state, "backup_task", None)
+    if task:
+        task.cancel()
     client.close()

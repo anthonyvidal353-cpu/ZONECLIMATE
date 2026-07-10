@@ -37,6 +37,10 @@ export const api = {
   listUsers: () => http.get("/users").then((r) => r.data),
   updateUserRole: (id, role) => http.put(`/users/${id}`, { role }).then((r) => r.data),
   deleteUser: (id) => http.delete(`/users/${id}`).then((r) => r.data),
+  // sauvegarde (admin)
+  downloadBackup: () => http.get("/admin/backup").then((r) => r.data),
+  saveBackupNow: () => http.post("/admin/backup/save").then((r) => r.data),
+  restoreBackup: (data) => http.post("/admin/restore", data).then((r) => r.data),
   // installations
   listInstallations: () => http.get("/installations").then((r) => r.data),
   createInstallation: (payload) => http.post("/installations", payload).then((r) => r.data),
@@ -58,7 +62,7 @@ export const api = {
   setMaster: (iid, id) => http.post(`/installations/${iid}/zones/${id}/set-master`).then((r) => r.data),
   getDevices: (iid) => http.get(`/installations/${iid}/devices`).then((r) => r.data),
   syncDevices: (iid) => http.post(`/installations/${iid}/devices/sync`).then((r) => r.data),
-  discover: (iid) => http.post(`/installations/${iid}/discover`).then((r) => r.data),
+  discover: (iid, count = 1, category = "thermostat") => http.post(`/installations/${iid}/discover`, null, { params: { count, category } }).then((r) => r.data),
   listPairing: (iid) => http.get(`/installations/${iid}/pairing`).then((r) => r.data),
   associatePairing: (iid, pid, data) => http.post(`/installations/${iid}/pairing/${pid}/associate`, data).then((r) => r.data),
   ignorePairing: (iid, pid) => http.delete(`/installations/${iid}/pairing/${pid}`).then((r) => r.data),

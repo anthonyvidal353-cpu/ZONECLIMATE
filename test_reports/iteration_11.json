@@ -1,0 +1,25 @@
+{
+  "summary": "Backend-only testing of BUG FIX B (discover count/category) and Admin backup/restore. Added new pytest module /app/backend/tests/test_backup_and_discover.py (16 tests). All 16 pass on the shared preview backend, including RBAC (403 for non-super_admin), invalid body (400), count clamping [1..10], per-category discovery, association creating one device per thermostat, backup file existence, and full backup->restore roundtrip with admin login preservation.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_backup_and_discover.py",
+    "/app/test_reports/pytest/backup_discover.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "The discover endpoint returns ALL current pending pairings for the installation (not just the newly-created batch). This is fine functionally, but the response semantics can be surprising for clients; consider returning only the newly inserted items or including a 'new_ids' field.",
+    "restore_backup performs delete_many + insert_many without a transaction; a mid-restore crash could leave the DB partially wiped. Consider wrapping in a Mongo transaction or writing to a shadow DB and swapping.",
+    "count is silently clamped to [1..10] rather than returning 400 for out-of-range values — acceptable but could hide client bugs."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backup_and_discover.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "admin@climazone.fr / Admin1234! ; client@demo.fr / Demo1234! ; installateur@demo.fr / Demo1234!",
+  "seed_data_creation": "Created throwaway installation TEST_Discover_Install (installer) and associated 3 thermostats to new zones ZoneTest_0..2. Persistent but harmless.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backup/restore tests share the preview MongoDB with any other worker's tests, so restore_roundtrip briefly wipes and reinserts all BACKUP_COLLECTIONS. The test file uses -n 2 loadscope; _clear_pairing helper retries to survive this race. Run via: pytest /app/backend/tests/test_backup_and_discover.py -v. Backup file lives at /app/backend/data/backup.json.",
+  "rca of the issue": "Original bug B (5 thermostats -> 1..3 discovered) was already fixed: the discover endpoint now accepts count (clamped 1..10) and category, and creates exactly `count` pairing docs before returning the full pending list. Verified via delta assertions (post-pre == count) for count in {1,3,5}, clamp verified for 0 and 50."
+}

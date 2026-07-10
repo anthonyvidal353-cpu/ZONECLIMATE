@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Ticket, House, Crown, Wrench, ArrowRight, Users, Trash, ShieldCheck, Spinner } from "@phosphor-icons/react";
+import { Plus, Ticket, House, Crown, Wrench, ArrowRight, Users, Trash, ShieldCheck, Spinner, DownloadSimple, UploadSimple, FloppyDisk } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
 import api, { formatApiErrorDetail } from "../lib/api";
 import { useAuth, ROLE_LABELS } from "../context/AuthContext";
@@ -75,6 +75,81 @@ function UsersManager() {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function BackupManager() {
+  const [busy, setBusy] = useState("");
+  const fileRef = useRef(null);
+
+  const doDownload = async () => {
+    setBusy("download");
+    try {
+      const data = await api.downloadBackup();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `zoneclimate-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Sauvegarde téléchargée");
+    } catch (e) {
+      toast.error(formatApiErrorDetail(e.response?.data?.detail));
+    } finally { setBusy(""); }
+  };
+
+  const doSaveNow = async () => {
+    setBusy("save");
+    try { await api.saveBackupNow(); toast.success("Sauvegarde enregistrée sur le serveur"); }
+    catch (e) { toast.error(formatApiErrorDetail(e.response?.data?.detail)); }
+    finally { setBusy(""); }
+  };
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy("restore");
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const res = await api.restoreBackup(data);
+      const total = Object.values(res.counts || {}).reduce((a, b) => a + b, 0);
+      toast.success(`Restauration réussie (${total} enregistrements)`);
+    } catch (err) {
+      toast.error(err.response ? formatApiErrorDetail(err.response?.data?.detail) : "Fichier JSON invalide");
+    } finally { setBusy(""); if (fileRef.current) fileRef.current.value = ""; }
+  };
+
+  return (
+    <div className="border border-border/60 bg-[#FFFFFF] rounded-lg" data-testid="backup-manager">
+      <div className="p-6 border-b border-border/50">
+        <p className="overline text-zinc-500">Sécurité des données</p>
+        <h2 className="font-display text-2xl font-bold tracking-tight mt-1">Sauvegarde & restauration</h2>
+        <p className="text-sm text-zinc-500 mt-2">
+          Vos données sont sauvegardées automatiquement sur le serveur. Vous pouvez aussi télécharger une copie
+          ou restaurer une sauvegarde antérieure. La restauration <strong>remplace</strong> toutes les données actuelles.
+        </p>
+      </div>
+      <div className="p-6 flex flex-col sm:flex-row flex-wrap gap-3">
+        <Button data-testid="backup-download-btn" onClick={doDownload} disabled={busy === "download"}
+          className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold">
+          <DownloadSimple weight="bold" size={16} className="mr-2" />
+          {busy === "download" ? "Préparation…" : "Télécharger une sauvegarde"}
+        </Button>
+        <Button data-testid="backup-savenow-btn" onClick={doSaveNow} disabled={busy === "save"}
+          variant="outline" className="rounded-full border-border/70 font-semibold">
+          <FloppyDisk weight="bold" size={16} className="mr-2" />
+          {busy === "save" ? "Enregistrement…" : "Sauvegarder maintenant"}
+        </Button>
+        <Button data-testid="backup-restore-btn" onClick={() => fileRef.current?.click()} disabled={busy === "restore"}
+          variant="outline" className="rounded-full border-border/70 font-semibold">
+          <UploadSimple weight="bold" size={16} className="mr-2" />
+          {busy === "restore" ? "Restauration…" : "Restaurer un fichier"}
+        </Button>
+        <input ref={fileRef} type="file" accept="application/json,.json" onChange={onFile} className="hidden" data-testid="backup-file-input" />
       </div>
     </div>
   );
@@ -165,7 +240,8 @@ export default function Home() {
 
       {isAdminView && (
         <div className="flex gap-1 border border-border/60 bg-[#FFFFFF] rounded-full p-1 w-fit mb-6">
-          {[["installations", "Installations", House], ["users", "Utilisateurs", Users]].map(([k, l, Icon]) => (
+          {[["installations", "Installations", House], ["users", "Utilisateurs", Users],
+            ...(user.role === "super_admin" ? [["backup", "Sauvegarde", ShieldCheck]] : [])].map(([k, l, Icon]) => (
             <button key={k} data-testid={`admintab-${k}`} onClick={() => setTab(k)}
               className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors duration-200"
               style={{ background: tab === k ? "#3F3F46" : "transparent", color: tab === k ? "#FFFFFF" : "#71717A" }}>
@@ -229,6 +305,8 @@ export default function Home() {
       )}
 
       {isAdminView && tab === "users" && <UsersManager />}
+
+      {user.role === "super_admin" && tab === "backup" && <BackupManager />}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent className="bg-white border-border" data-testid="delete-confirm-dialog">

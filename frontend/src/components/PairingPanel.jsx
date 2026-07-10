@@ -13,6 +13,8 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
   const [scanning, setScanning] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [choice, setChoice] = useState({}); // pid -> { zone_id, new_zone_name }
+  const [scanCount, setScanCount] = useState(1);
+  const [scanCategory, setScanCategory] = useState("thermostat");
 
   const defaultsFor = (list) => {
     const c = {};
@@ -34,11 +36,11 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
     setScanning(true);
     toast.message("ZoneClimate interroge le cloud pour les appareils en appairage…");
     try {
-      const found = await api.discover(iid);
+      const found = await api.discover(iid, scanCount, scanCategory);
       setDiscovered(found);
       setChoice((prev) => ({ ...defaultsFor(found), ...prev }));
       if (found.length === 0) toast("Aucun appareil en mode appairage détecté");
-      else toast.success(`${found.length} appareil(s) découvert(s) — cliquez « Associer »`);
+      else toast.success(`${found.length} appareil(s) en attente d'association`);
     } finally { setScanning(false); }
   };
 
@@ -76,16 +78,42 @@ export const PairingPanel = ({ iid, zones, onAssociated }) => {
 
   return (
     <div className="border border-border/60 bg-[#FFFFFF] rounded-lg">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-6 border-b border-border/50">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 p-6 border-b border-border/50">
         <div>
           <p className="overline text-zinc-500">Appairage</p>
           <h2 className="font-display text-2xl font-bold tracking-tight mt-1">Ajouter un appareil</h2>
-          <p className="text-xs text-zinc-500 mt-1">Mettez le gainable ou un thermostat en mode appairage, puis lancez la recherche.</p>
+          <p className="text-xs text-zinc-500 mt-1">Mettez vos appareils en mode appairage, indiquez leur nombre et leur type, puis lancez la recherche.</p>
         </div>
-        <Button data-testid="scan-devices-btn" onClick={scan} disabled={scanning} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold disabled:opacity-50">
-          {scanning ? <CircleNotch weight="bold" size={16} className="animate-spin mr-2" /> : <MagnifyingGlass weight="bold" size={16} className="mr-2" />}
-          {scanning ? "Recherche…" : "Rechercher des appareils"}
-        </Button>
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] text-zinc-500 font-medium">Type</span>
+            <Select value={scanCategory} onValueChange={setScanCategory}>
+              <SelectTrigger data-testid="scan-category-select" className="w-full sm:w-[140px] h-10 bg-zinc-100 border-border/70 rounded-full text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="thermostat">Thermostat(s)</SelectItem>
+                <SelectItem value="gainable">Gainable</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] text-zinc-500 font-medium">Nombre en appairage</span>
+            <Input
+              data-testid="scan-count-input"
+              type="number"
+              min={1}
+              max={10}
+              value={scanCount}
+              onChange={(e) => setScanCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+              className="h-10 w-full sm:w-[90px] bg-zinc-100 border-border/70 rounded-full text-center font-mono-num"
+            />
+          </div>
+          <Button data-testid="scan-devices-btn" onClick={scan} disabled={scanning} className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold disabled:opacity-50 h-10">
+            {scanning ? <CircleNotch weight="bold" size={16} className="animate-spin mr-2" /> : <MagnifyingGlass weight="bold" size={16} className="mr-2" />}
+            {scanning ? "Recherche…" : "Rechercher des appareils"}
+          </Button>
+        </div>
       </div>
 
       <div className="p-6">
