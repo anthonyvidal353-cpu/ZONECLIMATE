@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { SquaresFour, ListChecks, CalendarBlank, UsersThree, ArrowLeft, Thermometer, ChartLine } from "@phosphor-icons/react";
+import { SquaresFour, ListChecks, CalendarBlank, UsersThree, ArrowLeft, Thermometer, ChartLine, Wind } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { AppShell } from "../components/AppShell";
 import { MasterZoneCard } from "../components/MasterZoneCard";
@@ -12,9 +12,11 @@ import { SchedulePanel } from "../components/SchedulePanel";
 import { MembersPanel } from "../components/MembersPanel";
 import { HistoryPanel } from "../components/HistoryPanel";
 import { AlertsBanner } from "../components/AlertsBanner";
+import { PlenumView } from "../components/PlenumView";
 
 const TABS = [
   { key: "zones", label: "Zones", icon: SquaresFour },
+  { key: "plenum", label: "Plénum", icon: Wind },
   { key: "history", label: "Historique", icon: ChartLine },
   { key: "devices", label: "Appareils", icon: ListChecks },
   { key: "schedule", label: "Planning", icon: CalendarBlank },
@@ -56,7 +58,10 @@ export default function InstallationDashboard() {
 
   useEffect(() => {
     const t = setInterval(async () => {
-      try { setZones(await api.tick(iid)); } catch {}
+      try {
+        const res = await api.tick(iid);
+        if (res?.zones) { setZones(res.zones); if (res.system) setSystem(res.system); }
+      } catch {}
     }, 4000);
     return () => clearInterval(t);
   }, [iid]);
@@ -205,9 +210,9 @@ export default function InstallationDashboard() {
         </div>
       )}
 
-      {tab === "history" && <HistoryPanel iid={iid} />}
+      {tab === "plenum" && <PlenumView zones={zones} system={system} />}
 
-      {tab === "devices" && (
+      {tab === "history" && <HistoryPanel iid={iid} />}      {tab === "devices" && (
         <div className="space-y-6">
           {canWrite && (
             <PairingPanel

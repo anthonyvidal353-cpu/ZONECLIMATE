@@ -199,6 +199,13 @@ class System(BaseModel):
     master_setpoint: float = 21.0
     fan_speed: str = "auto"
     fault_codes: List[FaultCode] = []
+    # État de régulation du gainable (calculé par l'algorithme)
+    unit_running: bool = False          # compresseur actif
+    purging: bool = False               # purge ventilation en cours
+    purge_until: Optional[str] = None   # fin de la purge (ISO)
+    demand: float = 0.0                 # demande max des zones (°C)
+    unit_setpoint: float = 0.0          # consigne modulée envoyée au gainable
+    fan_level: str = "arrêt"            # ventilation effective (faible/moyenne/forte/arrêt)
     updated_at: str = Field(default_factory=now_iso)
 
 
@@ -1259,27 +1266,128 @@ async def associate_qr(iid: str, payload: AssociateQR, user: dict = Depends(get_
 
 
 # ----------------------------- Simulation -----------------------------
+REG_DEADBAND = 0.5        # zone morte (°C) autour de la consigne
+REG_PURGE_SECONDS = 30    # purge ventilation registres ouverts avant arrêt
+
+
+def _fan_for_demand(d: float) -> str:
+    if d >= 2.5:
+        return "forte"
+    if d >= 1.0:
+        return "moyenne"
+    return "faible"
+
+
 @api_router.post("/installations/{iid}/simulate/tick")
 async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
+    """Algorithme de régulation ZoneClimate.
+
+    - Les registres suivent la demande de chaque zone (hystérésis sur la deadband).
+    - La consigne envoyée au gainable est modulée proportionnellement à la demande
+      la plus forte parmi les zones qui appellent.
+    - La ventilation s'adapte à la demande max.
+    - Quand toutes les zones sont satisfaites, le gainable coupe le compresseur mais
+      lance une purge ventilation de 30 s registres ouverts avant l'arrêt complet.
+    """
     await get_installation_for(user, iid)
     sysd = await db.system.find_one({"installation_id": iid}, {"_id": 0})
     system = System(**sysd)
     zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).to_list(200)
+    now = datetime.now(timezone.utc)
+    heat = system.mode == "chaud"
+
+    # 1) Demande par zone + hystérésis d'appel des registres
+    max_demand = 0.0
+    active_setpoints = []
     for z in zones:
-        cur = z["current_temp"]
-        if not system.power or not z["active"] or not z["damper_open"]:
-            target, step = 19.0, 0.1
+        if not z["active"]:
+            z["_call"] = False
+            continue
+        active_setpoints.append(z["setpoint"])
+        demand = (z["setpoint"] - z["current_temp"]) if heat else (z["current_temp"] - z["setpoint"])
+        if demand > max_demand:
+            max_demand = demand
+        if demand > REG_DEADBAND:
+            z["_call"] = True
+        elif demand <= 0:
+            z["_call"] = False
         else:
+            z["_call"] = z["damper_open"]  # bande de maintien : garde l'état courant
+
+    calling = max_demand > REG_DEADBAND
+
+    # 2) Machine d'état du gainable (compresseur + purge)
+    unit_running = system.unit_running
+    purge_until = system.purge_until
+    purging = False
+
+    if not system.power:
+        unit_running, purge_until = False, None
+    elif calling:
+        unit_running, purge_until = True, None
+    else:
+        # Toutes les zones satisfaites
+        if unit_running:
+            purge_until = (now + timedelta(seconds=REG_PURGE_SECONDS)).isoformat()
+            unit_running = False
+        if purge_until:
+            if now < datetime.fromisoformat(purge_until):
+                purging = True
+            else:
+                purge_until = None
+
+    # 3) Modulation de puissance (consigne modulée + ventilation effective)
+    if unit_running:
+        offset = min(max(max_demand, 0.0), 5.0)  # 0..5°C de sur/sous-consigne
+        if heat:
+            base = max(active_setpoints) if active_setpoints else system.master_setpoint
+            unit_setpoint = round(base + offset, 1)
+        else:
+            base = min(active_setpoints) if active_setpoints else system.master_setpoint
+            unit_setpoint = round(base - offset, 1)
+        fan_level = system.fan_speed if system.fan_speed and system.fan_speed != "auto" else _fan_for_demand(max_demand)
+    elif purging:
+        unit_setpoint, fan_level = 0.0, "faible"
+    else:
+        unit_setpoint, fan_level = 0.0, "arrêt"
+
+    # 4) Position des registres + 5) évolution des températures (simulée)
+    for z in zones:
+        if not z["active"]:
+            damper = False
+        elif purging:
+            damper = True                     # purge : tous les registres ouverts
+        elif unit_running:
+            damper = bool(z.get("_call", z["damper_open"]))
+        else:
+            damper = False
+
+        cur = z["current_temp"]
+        if unit_running and z["active"] and damper:
             target, step = z["setpoint"], 0.4
+        elif purging:
+            target, step = cur, 0.0           # ventilation neutre : pas de variation
+        else:
+            target, step = 19.0, 0.1          # dérive lente vers l'ambiance
         diff = target - cur
         new = target if abs(diff) < step else cur + step * (1 if diff > 0 else -1)
         new = round(new + random.uniform(-0.05, 0.05), 1)
-        damper = z["damper_open"]
-        if z["active"] and system.power:
-            damper = not (abs(z["setpoint"] - new) <= 0.3)
         await db.zones.update_one({"id": z["id"]}, {"$set": {"current_temp": new, "damper_open": damper}})
+
+    # 6) Persiste l'état du gainable
+    await db.system.update_one({"installation_id": iid}, {"$set": {
+        "unit_running": unit_running,
+        "purging": purging,
+        "purge_until": purge_until,
+        "demand": round(max_demand, 1),
+        "unit_setpoint": unit_setpoint,
+        "fan_level": fan_level,
+        "updated_at": now.isoformat(),
+    }})
+
     docs = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
-    return [Zone(**d) for d in docs]
+    sysd = await db.system.find_one({"installation_id": iid}, {"_id": 0})
+    return {"zones": [Zone(**d) for d in docs], "system": System(**sysd)}
 
 
 @api_router.get("/installations/{iid}/history")
