@@ -1,0 +1,21 @@
+# Surcharge pour Raspberry Pi / Linux : réseau HOST pour le pilotage local complet
+# (scan UDP + connexions directes aux appareils Tuya sur le LAN).
+#
+# Lancement sur le Pi :
+#   docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d --build
+#
+services:
+  backend:
+    network_mode: host
+    environment:
+      - MONGO_URL=mongodb://127.0.0.1:27017
+      - DB_NAME=zoneclimate
+      - TUYA_ENC_KEY=${TUYA_ENC_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - CORS_ORIGINS=http://localhost:3000
+      - FRONTEND_URL=http://localhost:3000
+
+  mongo:
+    network_mode: host

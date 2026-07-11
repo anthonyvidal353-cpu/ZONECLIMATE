@@ -49,6 +49,11 @@ export const api = {
   deleteTuyaProject: (id) => http.delete(`/admin/tuya/projects/${id}`).then((r) => r.data),
   activateTuyaProject: (id) => http.post(`/admin/tuya/projects/${id}/activate`).then((r) => r.data),
   testTuyaProject: (id) => http.post(`/admin/tuya/projects/${id}/test`).then((r) => r.data),
+  // Pilotage local (LAN / Raspberry)
+  localDevices: () => http.get("/admin/tuya/local/devices").then((r) => r.data),
+  localSyncKeys: () => http.post("/admin/tuya/local/sync-keys").then((r) => r.data),
+  localScan: (timeout = 6) => http.post("/admin/tuya/local/scan", null, { params: { timeout } }).then((r) => r.data),
+  localTest: (tuya_id) => http.post("/admin/tuya/local/test", { tuya_id }).then((r) => r.data),
   // Catalogue QR (admin) + association par QR
   catalogDiscover: () => http.post("/admin/catalog/discover").then((r) => r.data),
   listCatalog: () => http.get("/admin/catalog").then((r) => r.data),

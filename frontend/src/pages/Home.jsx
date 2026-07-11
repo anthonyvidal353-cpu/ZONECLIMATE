@@ -8,6 +8,7 @@ import { useAuth, ROLE_LABELS } from "../context/AuthContext";
 import { AppShell } from "../components/AppShell";
 import { CreateInstallationDialog } from "../components/CreateInstallationDialog";
 import { TuyaManager } from "../components/TuyaManager";
+import { LocalManager } from "../components/LocalManager";
 import { CatalogManager } from "../components/CatalogManager";import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -312,7 +313,7 @@ export default function Home() {
 
       {user.role === "super_admin" && tab === "backup" && <BackupManager />}
 
-      {user.role === "super_admin" && tab === "tuya" && <TuyaManager />}
+      {user.role === "super_admin" && tab === "tuya" && <><TuyaManager /><LocalManager /></>}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent className="bg-white border-border" data-testid="delete-confirm-dialog">

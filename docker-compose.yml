@@ -1,0 +1,50 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: zoneclimate-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - zoneclimate
+
+  backend:
+    build: ./backend
+    container_name: zoneclimate-backend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+      - DB_NAME=zoneclimate
+      - TUYA_ENC_KEY=${TUYA_ENC_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - CORS_ORIGINS=http://localhost:3000
+      - FRONTEND_URL=http://localhost:3000
+    depends_on:
+      - mongo
+    networks:
+      - zoneclimate
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        REACT_APP_BACKEND_URL: http://localhost:8001
+    container_name: zoneclimate-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - zoneclimate
+
+volumes:
+  mongo_data:
+
+networks:
+  zoneclimate:
+    driver: bridge

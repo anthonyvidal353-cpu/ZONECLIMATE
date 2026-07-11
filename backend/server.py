@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 
 import tuya
+import tuya_local
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -44,7 +45,7 @@ DATA_DIR = ROOT_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 BACKUP_FILE = DATA_DIR / "backup.json"
 BACKUP_COLLECTIONS = ["users", "installations", "memberships", "system",
-                      "zones", "devices", "pairing", "schedule", "invitations", "tuya_projects", "catalog"]
+                      "zones", "devices", "pairing", "schedule", "invitations", "tuya_projects", "catalog", "local_devices"]
 BACKUP_INTERVAL_SEC = 45
 
 
@@ -198,6 +199,7 @@ class System(BaseModel):
     power: bool = True
     master_setpoint: float = 21.0
     fan_speed: str = "auto"
+    control_mode: str = "cloud"         # cloud (API Tuya) | local (LAN via Raspberry/PC)
     fault_codes: List[FaultCode] = []
     # État de régulation du gainable (calculé par l'algorithme)
     unit_running: bool = False          # compresseur actif
@@ -269,6 +271,7 @@ class SystemUpdate(BaseModel):
     power: Optional[bool] = None
     master_setpoint: Optional[float] = None
     fan_speed: Optional[str] = None
+    control_mode: Optional[str] = None
 
 
 class ScheduleSlotCreate(BaseModel):
@@ -711,6 +714,106 @@ async def test_tuya_project(pid: str, user: dict = Depends(require_roles("super_
     await db.tuya_projects.update_one(
         {"id": pid}, {"$set": {"last_test_at": now_iso(), "last_test_ok": result["ok"]}})
     return result
+
+
+# ----------------------------- Pilotage LOCAL (LAN / Raspberry) -----------------------------
+def public_local_device(d: dict) -> dict:
+    # Ne JAMAIS exposer la local_key. IP partiellement masquée.
+    ip = d.get("ip") or ""
+    ip_masked = (ip.rsplit(".", 1)[0] + ".…") if ip.count(".") == 3 else ("configurée" if ip else "")
+    return {
+        "tuya_id": d.get("tuya_id"),
+        "name": d.get("name"),
+        "category": map_tuya_category(d.get("category")),
+        "product_name": d.get("product_name"),
+        "version": d.get("version"),
+        "ip_masked": ip_masked,
+        "has_ip": bool(ip),
+        "has_key": bool(d.get("local_key_enc")),
+        "project_name": d.get("project_name"),
+        "last_seen_at": d.get("last_seen_at"),
+        "updated_at": d.get("updated_at"),
+    }
+
+
+@api_router.post("/admin/tuya/local/sync-keys")
+async def local_sync_keys(user: dict = Depends(require_roles("super_admin"))):
+    """Récupère (via le cloud, une seule fois) les local_key de tous les appareils
+    de tous les projets Tuya, puis les stocke CHIFFRÉES pour le pilotage local."""
+    projects = await db.tuya_projects.find({}).to_list(100)
+    if not projects:
+        raise HTTPException(400, "Aucun projet Tuya configuré. Ajoutez-en un dans Paramètres.")
+    saved, errors = 0, []
+    for p in projects:
+        try:
+            devices = await tuya_local.fetch_local_keys(
+                p["region"], p["access_id"], tuya.decrypt_secret(p["access_secret_enc"]))
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{p['name']}: {type(e).__name__}")
+            continue
+        for d in devices:
+            if not d.get("tuya_id") or not d.get("local_key"):
+                continue
+            update = {
+                "tuya_id": d["tuya_id"],
+                "name": d.get("name"),
+                "category": d.get("category"),
+                "product_name": d.get("product_name"),
+                "version": d.get("version") or "3.3",
+                "local_key_enc": tuya.encrypt_secret(d["local_key"]),
+                "project_name": p.get("name"),
+                "updated_at": now_iso(),
+            }
+            if d.get("ip"):
+                update["ip"] = d["ip"]
+            await db.local_devices.update_one(
+                {"tuya_id": d["tuya_id"]}, {"$set": update}, upsert=True)
+            saved += 1
+    return {"ok": saved > 0, "saved": saved, "errors": errors}
+
+
+@api_router.get("/admin/tuya/local/devices")
+async def local_list_devices(user: dict = Depends(require_roles("super_admin", "moderator"))):
+    docs = await db.local_devices.find({}, {"_id": 0}).sort("updated_at", -1).to_list(500)
+    return [public_local_device(d) for d in docs]
+
+
+@api_router.post("/admin/tuya/local/scan")
+async def local_scan(timeout: int = 6, user: dict = Depends(require_roles("super_admin"))):
+    """Scanne le LAN (broadcast UDP) pour trouver l'IP et la version des appareils.
+    Fonctionne uniquement quand le serveur est sur le MÊME réseau que les appareils
+    (Raspberry Pi / PC à la maison). Met à jour l'IP/version des appareils connus."""
+    try:
+        found = await tuya_local.scan_lan(timeout)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"Scan LAN impossible: {type(e).__name__}")
+    updated = 0
+    for gwid, info in found.items():
+        res = await db.local_devices.update_one(
+            {"tuya_id": gwid},
+            {"$set": {"ip": info.get("ip"), "version": info.get("version"), "last_seen_at": now_iso()}})
+        updated += res.matched_count
+    return {"ok": True, "found": len(found), "updated_known": updated,
+            "devices": [{"tuya_id": g, **i} for g, i in found.items()]}
+
+
+@api_router.post("/admin/tuya/local/test")
+async def local_test(payload: dict, user: dict = Depends(require_roles("super_admin"))):
+    tuya_id = payload.get("tuya_id")
+    d = await db.local_devices.find_one({"tuya_id": tuya_id}, {"_id": 0})
+    if not d:
+        raise HTTPException(404, "Appareil local introuvable (synchronisez les clés).")
+    if not d.get("ip"):
+        raise HTTPException(400, "IP inconnue. Lancez un scan LAN depuis le réseau des appareils.")
+    if not d.get("local_key_enc"):
+        raise HTTPException(400, "Clé locale absente. Synchronisez les clés.")
+    try:
+        status = await tuya_local.read_status(
+            tuya_id, d["ip"], tuya.decrypt_secret(d["local_key_enc"]), d.get("version", "3.3"))
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    await db.local_devices.update_one({"tuya_id": tuya_id}, {"$set": {"last_seen_at": now_iso()}})
+    return {"ok": True, "dps": status.get("dps", status)}
 
 
 # ----------------------------- Catalogue QR (Admin: super_admin, moderator) -----------------------------
