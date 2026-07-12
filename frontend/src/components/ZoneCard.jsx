@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { Minus, Plus, ArrowsOutLineVertical, ArrowsInLineVertical, PencilSimple, Check, X, Crown } from "@phosphor-icons/react";
+import { Minus, Plus, ArrowsOutLineVertical, ArrowsInLineVertical, PencilSimple, Check, X, Crown, Trash } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
 import { ZoneIcon } from "../lib/icons";
 import { Switch } from "./ui/switch";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "./ui/alert-dialog";
 
-export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, onSetMaster, onValves, canWrite = true, index }) => {
+export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, onSetMaster, onValves, onDelete, canWrite = true, index }) => {
   const heat = mode === "chaud";
   const accent = heat ? "#7C3AED" : "#3B82F6";
   const active = zone.active && systemOn;
@@ -14,6 +18,8 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(zone.name);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const saveName = () => {
     const v = draft.trim();
@@ -24,6 +30,12 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
   const adjust = (d) => {
     const next = Math.min(30, Math.max(15, zone.setpoint + d));
     onSetpoint(zone.id, next);
+  };
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try { await onDelete(zone); setConfirmDel(false); }
+    finally { setDeleting(false); }
   };
 
   return (
@@ -122,6 +134,17 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
                 checked={zone.active}
                 onCheckedChange={() => onToggle(zone)}
               />
+              {onDelete && (
+                <button
+                  data-testid={`zone-delete-${zone.id}`}
+                  onClick={() => setConfirmDel(true)}
+                  className="w-8 h-8 rounded-full border border-border/70 flex items-center justify-center text-zinc-500 hover:text-offline hover:border-offline/50 transition-colors duration-200 active:scale-95"
+                  aria-label="Supprimer la zone"
+                  title="Supprimer la zone"
+                >
+                  <Trash size={15} />
+                </button>
+              )}
             </>
           )}
         </div>
@@ -168,6 +191,32 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
           </button>
         </div>
       </div>
+
+      <AlertDialog open={confirmDel} onOpenChange={(o) => !o && !deleting && setConfirmDel(false)}>
+        <AlertDialogContent className="bg-[#FFFFFF] border-border/70" data-testid={`zone-delete-dialog-${zone.id}`}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display tracking-tight flex items-center gap-2">
+              <Trash size={20} className="text-offline" /> Supprimer la zone
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-zinc-600">
+              Voulez-vous vraiment supprimer la zone <strong className="text-zinc-900">{zone.name}</strong> ?
+              <br />
+              Cette action est <strong className="text-offline">irréversible</strong>. Le thermostat associé et les créneaux de planning de cette zone seront également retirés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid={`zone-delete-cancel-${zone.id}`} disabled={deleting} className="rounded-full">Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid={`zone-delete-confirm-${zone.id}`}
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              disabled={deleting}
+              className="rounded-full bg-offline text-white hover:bg-offline/90"
+            >
+              {deleting ? "Suppression…" : "Supprimer définitivement"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 };

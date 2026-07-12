@@ -1277,7 +1277,21 @@ async def set_master(iid: str, zone_id: str, user: dict = Depends(get_current_us
     return [Zone(**d) for d in docs]
 
 
-# ----------------------------- Devices -----------------------------
+@api_router.delete("/installations/{iid}/zones/{zone_id}")
+async def delete_zone(iid: str, zone_id: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
+    zone = await db.zones.find_one({"installation_id": iid, "id": zone_id})
+    if not zone:
+        raise HTTPException(404, "Zone introuvable")
+    if zone.get("is_master"):
+        raise HTTPException(400, "Impossible de supprimer la zone maître. Définissez d'abord une autre zone comme maître.")
+    # Supprime la zone, ses thermostats associés et ses créneaux de planning.
+    await db.devices.delete_many({"installation_id": iid, "zone_id": zone_id, "category": "thermostat"})
+    await db.devices.update_many({"installation_id": iid, "zone_id": zone_id}, {"$set": {"zone_id": None}})
+    await db.schedule.delete_many({"installation_id": iid, "zone_id": zone_id})
+    await db.zones.delete_one({"installation_id": iid, "id": zone_id})
+    docs = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
+    return [Zone(**d) for d in docs]
 async def public_devices(iid: str):
     docs = await db.devices.find({"installation_id": iid}, {"_id": 0}).to_list(200)
     out = []
