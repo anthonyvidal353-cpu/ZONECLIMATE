@@ -134,7 +134,7 @@ export function LocalManager() {
         <div>
           <p className="overline text-zinc-500">Isolation du cloud</p>
           <h2 className="font-display text-2xl font-bold tracking-tight mt-1 flex items-center gap-2">
-            <HardDrives weight="duotone" size={24} className="text-heat" /> Pilotage local (LAN / Raspberry)
+            <HardDrives weight="duotone" size={24} className="text-heat" /> Pilotage local (automate)
           </h2>
           <p className="text-sm text-zinc-500 mt-1 max-w-2xl">
             Récupérez une seule fois les clés locales via le cloud, puis pilotez vos appareils
@@ -159,7 +159,7 @@ export function LocalManager() {
       <div className="p-6 space-y-3">
         <div className="rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-2.5">
           ⚠️ Le <strong>scan LAN</strong> et le <strong>test</strong> ne fonctionnent que lorsque ZoneClimate tourne
-          sur le <strong>même réseau que vos appareils</strong> (votre PC à la maison ou le Raspberry Pi), pas depuis le serveur cloud.
+          sur le <strong>même réseau que vos appareils</strong> (votre PC à la maison ou l'automate), pas depuis le serveur cloud.
         </div>
 
         {loading && (

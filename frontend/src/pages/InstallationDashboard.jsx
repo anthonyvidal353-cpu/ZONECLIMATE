@@ -13,6 +13,7 @@ import { MembersPanel } from "../components/MembersPanel";
 import { HistoryPanel } from "../components/HistoryPanel";
 import { AlertsBanner } from "../components/AlertsBanner";
 import { PlenumView } from "../components/PlenumView";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 const TABS = [
   { key: "zones", label: "Zones", icon: SquaresFour },
