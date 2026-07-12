@@ -1,0 +1,32 @@
+{
+  "summary": "Validated the 'included' filter on /api/admin/catalog and /api/admin/catalog/discover. Only devices whose tuya_id appears in local_devices with included=True are exposed. All 6 backend tests pass (auth regression + catalog filter + toggle + discover + QR format).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_catalog_included_filter.py",
+    "/app/test_reports/pytest/iteration_20.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 1695 lines — consider splitting into modules (catalog, auth, installations, tuya) for maintainability.",
+    "included_local_ids() runs on every /admin/catalog and /admin/catalog/discover call; fine for now but consider indexing local_devices.tuya_id if the collection grows.",
+    "The discover endpoint silently swallows non-TuyaError exceptions with a generic 'connexion impossible' — logging the actual exception would help future debugging."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_catalog_included_filter.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "not tested (per request)"},
+  "test_credentials": "super_admin admin@climazone.fr / Admin1234! — login returns access_token",
+  "seed_data_creation": "Seeded 3 catalog rows (TSTINC001 included, TSTEXC002 excluded, TSTNOL003 no local_device entry) + 2 local_devices; auto-cleaned in teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run test_catalog_included_filter.py serially (or via xdist_group='catalog_serial'). Parallel workers share MongoDB and race on the seed fixture. discover endpoint may return status 200 with empty items + errors (Tuya cloud unreachable / IP not whitelisted) — that is acceptable; the filter still holds.",
+  "rca of the issue": "Bug reported: catalog QR tab showed all Tuya devices, including personal/non-system ones. Fix in server.py lines 960-970 introduced included_local_ids() and filters both /api/admin/catalog and /api/admin/catalog/discover with 'if c[tuya_id] in included'. Validated by seeding 3 catalog docs with different local_devices states and asserting only the included one appears; also validated by flipping included flags and re-querying. Regression on auth (/api/auth/login + /api/auth/me) also passes."
+}
