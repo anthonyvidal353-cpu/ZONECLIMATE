@@ -1,3 +1,5 @@
+name: zoneclimate
+
 services:
   mongo:
     image: mongo:7
