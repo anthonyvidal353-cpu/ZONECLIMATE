@@ -919,6 +919,11 @@ async def _mark_catalog_assignment():
     return used
 
 
+async def included_local_ids() -> set:
+    docs = await db.local_devices.find({"included": True}, {"tuya_id": 1, "_id": 0}).to_list(1000)
+    return {d["tuya_id"] for d in docs if d.get("tuya_id")}
+
+
 @api_router.post("/admin/catalog/discover")
 async def catalog_discover(user: dict = Depends(require_roles("super_admin", "moderator"))):
     # Agrège les appareils de TOUS les projets Tuya (capacités cumulées).
@@ -952,15 +957,17 @@ async def catalog_discover(user: dict = Depends(require_roles("super_admin", "mo
                                              "tuya_id": tid, "created_at": now_iso(), **fields})
     await write_backup_file()
     used = await _mark_catalog_assignment()
+    included = await included_local_ids()
     docs = await db.catalog.find({}, {"_id": 0}).sort("created_at", 1).to_list(500)
-    return {"items": [public_catalog({**c, "assigned": c["tuya_id"] in used}) for c in docs], "errors": errors}
+    return {"items": [public_catalog({**c, "assigned": c["tuya_id"] in used}) for c in docs if c["tuya_id"] in included], "errors": errors}
 
 
 @api_router.get("/admin/catalog")
 async def list_catalog(user: dict = Depends(require_roles("super_admin", "moderator"))):
     used = await _mark_catalog_assignment()
+    included = await included_local_ids()
     docs = await db.catalog.find({}, {"_id": 0}).sort("created_at", 1).to_list(500)
-    return [public_catalog({**c, "assigned": c["tuya_id"] in used}) for c in docs]
+    return [public_catalog({**c, "assigned": c["tuya_id"] in used}) for c in docs if c["tuya_id"] in included]
 
 
 # ----------------------------- Installations -----------------------------
