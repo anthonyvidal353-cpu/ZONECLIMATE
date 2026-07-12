@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Fire, Snowflake, Power, Minus, Plus, X, Crown, WifiHigh } from "@phosphor-icons/react";
+import { Fire, Snowflake, Power, Minus, Plus, X, Crown, WifiHigh, QrCode } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { ZoneIcon } from "../lib/icons";
+import { QrAssociateDialog } from "../components/QrAssociateDialog";
 
 export default function KioskDisplay() {
   const { id: iid } = useParams();
@@ -12,6 +13,7 @@ export default function KioskDisplay() {
   const [zones, setZones] = useState([]);
   const [now, setNow] = useState(new Date());
   const [loaded, setLoaded] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -66,26 +68,30 @@ export default function KioskDisplay() {
   return (
     <div className="w-screen h-screen overflow-hidden bg-zinc-950 text-white flex flex-col select-none" data-testid="kiosk-display">
       {/* Barre supérieure */}
-      <header className="flex items-center justify-between px-5 py-3 border-b border-white/10 shrink-0">
+      <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-white/10 shrink-0">
         <div className="min-w-0">
           <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">{now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "short" })} · {now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</p>
           <h1 className="font-display text-xl font-bold tracking-tight truncate">{installation?.name}</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <div className="inline-flex rounded-full bg-white/5 p-1">
             <button data-testid="kiosk-mode-chaud" onClick={() => setMode("chaud")}
-              className="inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2.5 text-sm font-bold transition-colors"
               style={{ background: !cold ? "#F97316" : "transparent", color: !cold ? "#000" : "#a1a1aa" }}>
               <Fire weight="fill" size={18} /> Chaud
             </button>
             <button data-testid="kiosk-mode-froid" onClick={() => setMode("froid")}
-              className="inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2.5 text-sm font-bold transition-colors"
               style={{ background: cold ? "#3B82F6" : "transparent", color: cold ? "#fff" : "#a1a1aa" }}>
               <Snowflake weight="fill" size={18} /> Froid
             </button>
           </div>
+          <button data-testid="kiosk-scan-btn" onClick={() => setScanOpen(true)}
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold bg-white/10 text-white hover:bg-white/15 transition-colors">
+            <QrCode weight="bold" size={18} /> Scanner
+          </button>
           <button data-testid="kiosk-power" onClick={togglePower}
-            className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition-colors"
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition-colors"
             style={{ background: on ? "rgba(239,68,68,0.15)" : "rgba(16,185,129,0.15)", color: on ? "#f87171" : "#34d399" }}>
             <Power weight="bold" size={18} /> {on ? "Arrêter" : "Démarrer"}
           </button>
@@ -98,7 +104,7 @@ export default function KioskDisplay() {
 
       {/* Grille de zones */}
       <main className="flex-1 overflow-auto p-4">
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))" }} data-testid="kiosk-zones">
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))" }} data-testid="kiosk-zones">
           {zones.map((z) => {
             const active = z.active && on;
             const reaching = active && Math.abs(z.current_temp - z.setpoint) > 0.3;
@@ -165,6 +171,14 @@ export default function KioskDisplay() {
           <WifiHigh size={13} /> {system.control_mode === "local" ? "Pilotage local" : "Pilotage cloud"}
         </span>
       </footer>
+
+      <QrAssociateDialog
+        open={scanOpen}
+        onOpenChange={setScanOpen}
+        iid={iid}
+        zones={zones}
+        onAssociated={async (zs) => { if (zs) setZones(zs); try { setZones(await api.getZones(iid)); } catch { /* ignore */ } }}
+      />
     </div>
   );
 }
