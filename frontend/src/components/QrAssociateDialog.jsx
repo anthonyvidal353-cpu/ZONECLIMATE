@@ -11,10 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 
 const READER_ID = "qr-reader-region";
 
-export const QrAssociateDialog = ({ open, onOpenChange, iid, zones = [], onAssociated }) => {
+export const QrAssociateDialog = ({ open, onOpenChange, iid, zones = [], onAssociated, startManual = false }) => {
   const [step, setStep] = useState("scan"); // scan | zone
   const [code, setCode] = useState("");
-  const [manual, setManual] = useState(false);
+  const [manual, setManual] = useState(startManual);
   const [manualCode, setManualCode] = useState("");
   const [zoneChoice, setZoneChoice] = useState("");
   const [newZoneName, setNewZoneName] = useState("");
@@ -67,10 +67,10 @@ export const QrAssociateDialog = ({ open, onOpenChange, iid, zones = [], onAssoc
   // Réinitialise à la fermeture.
   useEffect(() => {
     if (!open) {
-      setStep("scan"); setCode(""); setManual(false); setManualCode("");
+      setStep("scan"); setCode(""); setManual(startManual); setManualCode("");
       setZoneChoice(""); setNewZoneName("");
     }
-  }, [open]);
+  }, [open, startManual]);
 
   const handleOpenChange = async (o) => {
     if (!o) await stopScanner();
@@ -119,7 +119,11 @@ export const QrAssociateDialog = ({ open, onOpenChange, iid, zones = [], onAssoc
             <QrCode weight="duotone" size={24} className="text-heat" /> Associer par QR code
           </DialogTitle>
           <DialogDescription className="text-sm text-zinc-500">
-            {step === "scan" ? "Scannez l'étiquette QR collée sur l'appareil." : "Choisissez la pièce à laquelle rattacher cet appareil."}
+            {step === "zone"
+              ? "Choisissez la pièce à laquelle rattacher cet appareil."
+              : manual
+                ? "Saisissez le code inscrit sous le QR code de l'appareil."
+                : "Scannez l'étiquette QR collée sur l'appareil."}
           </DialogDescription>
         </DialogHeader>
 

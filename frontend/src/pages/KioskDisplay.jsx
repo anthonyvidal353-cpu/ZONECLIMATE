@@ -120,7 +120,7 @@ export default function KioskDisplay() {
           </div>
           <button data-testid="kiosk-scan-btn" onClick={() => setScanOpen(true)}
             className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold bg-white/10 text-white hover:bg-white/15 transition-colors">
-            <QrCode weight="bold" size={18} /> Scanner
+            <QrCode weight="bold" size={18} /> Ajouter
           </button>
           <button data-testid="kiosk-fullscreen-btn" onClick={toggleFullscreen}
             className="w-11 h-11 rounded-full bg-white/5 flex items-center justify-center text-zinc-300 hover:text-white transition-colors"
@@ -214,6 +214,7 @@ export default function KioskDisplay() {
         onOpenChange={setScanOpen}
         iid={iid}
         zones={zones}
+        startManual
         onAssociated={async (zs) => { if (zs) setZones(zs); try { setZones(await api.getZones(iid)); } catch { /* ignore */ } }}
       />
     </div>
