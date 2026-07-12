@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { ZoneIcon } from "../lib/icons";
 import { Switch } from "./ui/switch";
 
-export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, onSetMaster, canWrite = true, index }) => {
+export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, onSetMaster, onValves, canWrite = true, index }) => {
   const heat = mode === "chaud";
   const accent = heat ? "#7C3AED" : "#3B82F6";
   const active = zone.active && systemOn;
@@ -88,6 +88,21 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
             <p className="text-xs text-zinc-500">
               Registre : {zone.damper_open ? "Ouvert" : "Fermé"}
             </p>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="text-xs text-zinc-500">Vannes :</span>
+              {canWrite ? (
+                <select
+                  data-testid={`zone-valves-select-${zone.id}`}
+                  value={zone.valves || 1}
+                  onChange={(e) => onValves?.(zone.id, Number(e.target.value))}
+                  className="text-xs font-semibold bg-zinc-100 border border-border/70 rounded px-1.5 py-0.5 outline-none focus:border-zinc-500"
+                >
+                  {[1, 2, 3, 4].map((n) => (<option key={n} value={n}>{n}</option>))}
+                </select>
+              ) : (
+                <span className="text-xs font-semibold text-zinc-700">{zone.valves || 1}</span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">

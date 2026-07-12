@@ -31,27 +31,41 @@ export function CatalogManager() {
     } finally { setScanning(false); }
   };
 
-  const printLabels = () => {
-    if (!gridRef.current || items.length === 0) return;
-    const canvases = gridRef.current.querySelectorAll("canvas");
-    let cards = "";
-    items.forEach((it, i) => {
-      const url = canvases[i]?.toDataURL("image/png");
-      if (!url) return;
-      cards += `<div class="label"><img src="${url}"/><div class="nm">${it.name || ""}</div><div class="cd">${it.code}</div><div class="cat">${it.category === "gainable" ? "Gainable" : "Thermostat"}</div></div>`;
-    });
-    const w = window.open("", "_blank", "width=800,height=900");
-    w.document.write(`<html><head><title>Étiquettes QR — ZoneClimate</title><style>
+  const LABEL_STYLE = `
       body{font-family:system-ui,Arial,sans-serif;margin:16px}
       .grid{display:flex;flex-wrap:wrap;gap:16px}
       .label{border:1px solid #ccc;border-radius:8px;padding:12px;width:190px;text-align:center;page-break-inside:avoid}
       .label img{width:150px;height:150px}
       .nm{font-weight:700;margin-top:6px;font-size:13px}
       .cd{font-family:monospace;font-size:12px;color:#555}
-      .cat{font-size:11px;color:#7C3AED;margin-top:2px}
-      </style></head><body><div class="grid">${cards}</div>
-      <script>window.onload=function(){window.print();}<\/script></body></html>`);
+      .cat{font-size:11px;color:#7C3AED;margin-top:2px}`;
+
+  const labelHtml = (it, url) =>
+    `<div class="label"><img src="${url}"/><div class="nm">${it.name || ""}</div><div class="cd">${it.code}</div><div class="cat">${it.category === "gainable" ? "Gainable" : "Thermostat"}</div></div>`;
+
+  const openPrint = (cardsHtml, title) => {
+    const w = window.open("", "_blank", "width=800,height=900");
+    w.document.write(`<html><head><title>${title}</title><style>${LABEL_STYLE}</style></head><body><div class="grid">${cardsHtml}</div><script>window.onload=function(){window.print();}<\/script></body></html>`);
     w.document.close();
+  };
+
+  const printLabels = () => {
+    if (!gridRef.current || items.length === 0) return;
+    const canvases = gridRef.current.querySelectorAll("canvas");
+    let cards = "";
+    items.forEach((it, i) => {
+      const url = canvases[i]?.toDataURL("image/png");
+      if (url) cards += labelHtml(it, url);
+    });
+    openPrint(cards, "Étiquettes QR — ZoneClimate");
+  };
+
+  const printOne = (it, i) => {
+    if (!gridRef.current) return;
+    const canvases = gridRef.current.querySelectorAll("canvas");
+    const url = canvases[i]?.toDataURL("image/png");
+    if (!url) return;
+    openPrint(labelHtml(it, url), `QR ${it.code} — ZoneClimate`);
   };
 
   return (
@@ -87,7 +101,7 @@ export function CatalogManager() {
           </p>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {items.map((it) => (
+          {items.map((it, idx) => (
             <div key={it.id} data-testid={`catalog-item-${it.code}`} className="rounded-lg border border-border/60 p-4 flex flex-col items-center text-center">
               <div className="bg-white p-2 rounded-md border border-border/40">
                 <QRCodeCanvas value={it.qr} size={120} level="M" includeMargin={false} />
@@ -105,6 +119,13 @@ export function CatalogManager() {
                   <CheckCircle weight="fill" size={11} /> Associé
                 </span>
               )}
+              <button
+                data-testid={`catalog-print-one-${it.code}`}
+                onClick={() => printOne(it, idx)}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-border/70 px-3 py-1.5 text-[11px] font-semibold text-zinc-700 hover:border-heat hover:text-heat transition-colors duration-200"
+              >
+                <Printer weight="bold" size={13} /> Imprimer ce QR
+              </button>
             </div>
           ))}
         </div>

@@ -222,6 +222,7 @@ class Zone(BaseModel):
     active: bool = True
     device_id: Optional[str] = None
     is_master: bool = False
+    valves: int = 1          # nombre de vannes/registres pilotés par le thermostat (1 à 4)
     order: int = 0
 
 
@@ -264,6 +265,7 @@ class ZoneUpdate(BaseModel):
     setpoint: Optional[float] = None
     active: Optional[bool] = None
     name: Optional[str] = None
+    valves: Optional[int] = None
 
 
 class SystemUpdate(BaseModel):
@@ -294,6 +296,7 @@ class ZoneSpec(BaseModel):
     name: str
     icon: str = "house"
     master: bool = False
+    valves: int = 1
     thermostat: Optional[DeviceSpec] = None
 
 
@@ -379,7 +382,8 @@ async def seed_installation_equipment(installation_id: str, gainable=None, zones
             if master:
                 master_seen = True
             z = Zone(installation_id=installation_id, name=(zs.name.strip() or f"Zone {i + 1}"), icon=zs.icon,
-                     current_temp=21.0, setpoint=21.0, order=i, is_master=master)
+                     current_temp=21.0, setpoint=21.0, order=i, is_master=master,
+                     valves=min(4, max(1, zs.valves or 1)))
             zones.append(z.model_dump())
     else:
         for i, (name, icon, cur, sp) in enumerate(ZONES_DEF):
@@ -1185,6 +1189,8 @@ async def list_zones(iid: str, user: dict = Depends(get_current_user)):
 async def update_zone(iid: str, zone_id: str, payload: ZoneUpdate, user: dict = Depends(get_current_user)):
     await get_installation_for(user, iid, write=True)
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if "valves" in updates:
+        updates["valves"] = min(4, max(1, int(updates["valves"])))
     if not updates:
         raise HTTPException(400, "Aucune modification")
     res = await db.zones.update_one({"installation_id": iid, "id": zone_id}, {"$set": updates})
@@ -1478,6 +1484,18 @@ def _fan_for_demand(d: float) -> str:
     return "faible"
 
 
+FAN_ORDER = {"arrêt": 0, "faible": 1, "moyenne": 2, "forte": 3}
+
+
+def _fan_for_valves(v: int) -> str:
+    # Plus il y a de vannes ouvertes, plus il faut de débit d'air.
+    if v >= 5:
+        return "forte"
+    if v >= 3:
+        return "moyenne"
+    return "faible"
+
+
 @api_router.post("/installations/{iid}/simulate/tick")
 async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
     """Algorithme de régulation ZoneClimate.
@@ -1515,6 +1533,8 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
             z["_call"] = z["damper_open"]  # bande de maintien : garde l'état courant
 
     calling = max_demand > REG_DEADBAND
+    # Débit requis pondéré par le nombre total de vannes ouvertes (zones qui appellent)
+    open_valves = sum(min(4, max(1, int(z.get("valves", 1)))) for z in zones if z.get("active") and z.get("_call"))
 
     # 2) Machine d'état du gainable (compresseur + purge)
     unit_running = system.unit_running
@@ -1545,7 +1565,13 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
         else:
             base = min(active_setpoints) if active_setpoints else system.master_setpoint
             unit_setpoint = round(base - offset, 1)
-        fan_level = system.fan_speed if system.fan_speed and system.fan_speed != "auto" else _fan_for_demand(max_demand)
+        if system.fan_speed and system.fan_speed != "auto":
+            fan_level = system.fan_speed
+        else:
+            # Ventilation = la plus forte entre la demande thermique et le débit lié aux vannes ouvertes
+            f_demand = _fan_for_demand(max_demand)
+            f_valves = _fan_for_valves(open_valves)
+            fan_level = f_demand if FAN_ORDER[f_demand] >= FAN_ORDER[f_valves] else f_valves
     elif purging:
         unit_setpoint, fan_level = 0.0, "faible"
     else:

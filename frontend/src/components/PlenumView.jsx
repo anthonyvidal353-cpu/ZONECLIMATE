@@ -11,21 +11,36 @@ function zoneState(z, cold) {
   };
 }
 
-const Valve = ({ open, color }) => (
-  <div className="w-12 h-12 shrink-0 rounded-md border-2 bg-white flex items-center justify-center"
-    style={{ borderColor: open ? color : "#A1A1AA" }}
-    data-testid={`damper-${open ? "open" : "closed"}`}>
-    <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-      {/* Corps du moteur */}
-      <rect x="8" y="3" width="10" height="9" rx="4.5" stroke={open ? color : "#A1A1AA"} strokeWidth="2" />
-      {/* Tige */}
-      <line x1="13" y1="12" x2="13" y2="15" stroke={open ? color : "#A1A1AA"} strokeWidth="2" />
-      {/* Volet (pivote selon l'état) */}
-      <line x1="5" y1="19" x2="21" y2="19" stroke={open ? color : "#A1A1AA"} strokeWidth="2.5" strokeLinecap="round"
-        style={{ transformOrigin: "13px 19px", transform: open ? "rotate(0deg)" : "rotate(58deg)", transition: "transform 0.5s" }} />
-    </svg>
-  </div>
-);
+const Valve = ({ open, color, size = 48 }) => {
+  const inner = Math.round(size * 0.54);
+  return (
+    <div className="shrink-0 rounded-md border-2 bg-white flex items-center justify-center"
+      style={{ width: size, height: size, borderColor: open ? color : "#A1A1AA" }}
+      data-testid={`damper-${open ? "open" : "closed"}`}>
+      <svg width={inner} height={inner} viewBox="0 0 26 26" fill="none">
+        <rect x="8" y="3" width="10" height="9" rx="4.5" stroke={open ? color : "#A1A1AA"} strokeWidth="2" />
+        <line x1="13" y1="12" x2="13" y2="15" stroke={open ? color : "#A1A1AA"} strokeWidth="2" />
+        <line x1="5" y1="19" x2="21" y2="19" stroke={open ? color : "#A1A1AA"} strokeWidth="2.5" strokeLinecap="round"
+          style={{ transformOrigin: "13px 19px", transform: open ? "rotate(0deg)" : "rotate(58deg)", transition: "transform 0.5s" }} />
+      </svg>
+    </div>
+  );
+};
+
+const ValveCluster = ({ open, color, count = 1 }) => {
+  const n = Math.min(4, Math.max(1, count));
+  if (n === 1) return <Valve open={open} color={color} />;
+  return (
+    <div className="flex flex-col items-center gap-1 shrink-0" data-testid={`valve-cluster-${n}`}>
+      <div className="grid grid-cols-2 gap-1" style={{ width: 58 }}>
+        {Array.from({ length: n }).map((_, vi) => (
+          <Valve key={vi} open={open} color={color} size={26} />
+        ))}
+      </div>
+      <span className="text-[10px] font-bold" style={{ color: open ? color : "#A1A1AA" }}>×{n}</span>
+    </div>
+  );
+};
 
 export const PlenumView = ({ zones = [], system }) => {
   const cold = system?.mode === "froid";
@@ -105,8 +120,8 @@ export const PlenumView = ({ zones = [], system }) => {
                   ))}
                 </div>
 
-                {/* Vanne motorisée */}
-                <Valve open={st.open} color={st.color} />
+                {/* Vanne(s) motorisée(s) */}
+                <ValveCluster open={st.open} color={st.color} count={z.valves || 1} />
 
                 {/* Barre zone */}
                 <div className="relative flex-1 h-16 ml-[-2px] rounded-r-lg overflow-hidden flex items-center"

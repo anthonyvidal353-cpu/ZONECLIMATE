@@ -101,8 +101,13 @@ export default function InstallationDashboard() {
     toast.success(`Zone renommée : ${name}`);
   };
 
-  const setMaster = async (id) => {
-    const zs = await api.setMaster(iid, id);
+  const setZoneValves = async (id, valves) => {
+    const updated = await api.updateZone(iid, id, { valves });
+    setZones((zs) => zs.map((z) => (z.id === id ? updated : z)));
+    toast.success(`${updated.name} : ${valves} vanne${valves > 1 ? "s" : ""}`);
+  };
+
+  const setMaster = async (id) => {    const zs = await api.setMaster(iid, id);
     setZones(zs);
     toast.success(`« ${zs.find((x) => x.id === id)?.name} » est désormais le thermostat maître`);
   };
@@ -200,12 +205,12 @@ export default function InstallationDashboard() {
           {masterZone && (
             <MasterZoneCard zone={masterZone} system={system} canWrite={canWrite}
               onSystem={changeSystem} onMasterPower={masterPower} onSetpoint={setZoneSetpoint}
-              onRename={renameZone} onDiagnostic={runDiagnostic} onToggle={toggleZone} diagnosing={diagnosing} />
+              onRename={renameZone} onDiagnostic={runDiagnostic} onToggle={toggleZone} onValves={setZoneValves} diagnosing={diagnosing} />
           )}
           <div data-testid="zones-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {otherZones.map((z, i) => (
               <ZoneCard key={z.id} zone={z} index={i} mode={system.mode} systemOn={system.power} canWrite={canWrite}
-                onSetpoint={setZoneSetpoint} onToggle={toggleZone} onRename={renameZone} onSetMaster={setMaster} />
+                onSetpoint={setZoneSetpoint} onToggle={toggleZone} onRename={renameZone} onSetMaster={setMaster} onValves={setZoneValves} />
             ))}
           </div>
         </div>

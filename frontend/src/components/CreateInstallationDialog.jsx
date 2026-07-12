@@ -13,7 +13,7 @@ const ICON_OPTIONS = Object.keys(zoneIcons);
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function emptyZone(master = false, icon = "house", name = "") {
-  return { key: uid(), name, icon, master };
+  return { key: uid(), name, icon, master, valves: 1 };
 }
 
 // Modèles de logement : pré-remplissage rapide des zones
@@ -73,7 +73,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
 
     const payload = {
       name: name.trim(),
-      zones: cleanZones.map((z) => ({ name: z.name.trim(), icon: z.icon, master: z.master })),
+      zones: cleanZones.map((z) => ({ name: z.name.trim(), icon: z.icon, master: z.master, valves: z.valves || 1 })),
     };
     setBusy(true);
     try {
@@ -141,7 +141,7 @@ export const CreateInstallationDialog = ({ onCreated }) => {
             <div className="space-y-3">
               {zones.map((z, i) => (
                 <div key={z.key} data-testid={`zone-row-${i}`} className="rounded-md border border-border/60 bg-zinc-50 p-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_150px_auto_auto] gap-3 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_130px_110px_auto_auto] gap-3 items-end">
                     <div>
                       <Label className="text-xs text-zinc-500">Nom de la zone</Label>
                       <Input data-testid={`zone-name-${i}`} value={z.name} onChange={(e) => setZone(z.key, { name: e.target.value })} placeholder="Ex : Salon" className="mt-1 bg-zinc-100 border-border/70" />
@@ -154,6 +154,17 @@ export const CreateInstallationDialog = ({ onCreated }) => {
                         </SelectTrigger>
                         <SelectContent>
                           {ICON_OPTIONS.map((ic) => (<SelectItem key={ic} value={ic}>{PIECE_LABELS[ic] || ic}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-zinc-500">Vannes</Label>
+                      <Select value={String(z.valves || 1)} onValueChange={(v) => setZone(z.key, { valves: Number(v) })}>
+                        <SelectTrigger data-testid={`zone-valves-${i}`} className="mt-1 bg-zinc-100 border-border/70 h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4].map((n) => (<SelectItem key={n} value={String(n)}>{n} vanne{n > 1 ? "s" : ""}</SelectItem>))}
                         </SelectContent>
                       </Select>
                     </div>

@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 21 – Validated new 'valves per zone' feature (create + update + clamp), fan_level weighting by open valves in simulate/tick, Plénum ValveCluster rendering, and individual QR print buttons. All backend pytest tests (5/5) pass. Frontend Playwright flow passed: login → catalog QR page shows global print + per-card 'Imprimer ce QR' (popup opens), dashboard zone-valves-select changes persist with toast, Plénum tab renders valve-cluster-4 after setting Salon to 4 vannes. No JS errors observed.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_valves_and_qr_iter21.py",
+    "/app/test_reports/pytest/iter21.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 1720+ lines – consider splitting into routers (auth, installations, climate, catalog, tuya, backup) for maintainability.",
+    "_fan_for_valves thresholds (>=5 forte, >=3 moyenne) rely on total valves across zones, not per-zone count. Works for the requested behaviour (single zone with valves=4 -> moyenne, multi zones ramping up -> forte). Consider documenting/exposing constants for tuning."
+  ],
+  "updated_files": ["/app/backend/tests/test_valves_and_qr_iter21.py"],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "admin@climazone.fr / Admin1234!",
+  "seed_data_creation": "Ephemeral TEST_valves_* installation created & deleted by pytest fixture.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "New endpoints/behaviour: PUT /api/installations/{iid}/zones/{zid} accepts {valves:1..4} clamp; simulate/tick returns fan_level considering both thermal demand and total open valves. Frontend testids: zone-valves-select-{id}, master-zone-valves-select-{id}, valve-cluster-{n}, catalog-print-one-{code}. Catalog list only shows 1 item locally (Tuya discovery required for more).",
+  "rca of the issue": "N/A – all features validated."
+}
