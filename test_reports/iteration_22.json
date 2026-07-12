@@ -1,0 +1,28 @@
+{
+  "summary": "Iteration 22 – Validated Tuya local real-control feature set: PUT dps-map (200 + strips empty values, 404, 400 validation), POST refresh-status (200, demo-incl online=false), POST local/test on unreachable device (400 with clear message, marks online=false, never 500), control_mode toggle cloud<->local with simulate/tick stable in both modes. All 7 backend pytest tests PASS. Frontend Playwright: login → dashboard control-mode-toggle switches label (Pilotage cloud <-> Pilotage local) with persistence, screen-mode-btn navigates to /ecran/{iid}, kiosk at 800x480 renders 6 zones, mode chaud/froid + power + setpoint +/- + zone toggle + exit all work. LocalManager (Paramètres tab) refresh triggers 'Statuts mis à jour' toast, offline badge shown for demo-incl, DPS configuré badge shown, diag button correctly disabled (no IP/no key). No 500s or JS errors observed.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_local_iter22.py",
+    "/app/test_reports/pytest/iter22.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is ~1880 lines – splitting into routers (auth, installations, climate, catalog, tuya, tuya_local, backup) is increasingly necessary.",
+    "POST /api/admin/tuya/local/test returns HTTPException 400 when IP or local_key is missing (demo-incl case). The review spec suggested a graceful {ok:false,error:...} 200 response. Current behaviour still avoids 500 (spec's real requirement) and returns a clear French message, but consider unifying to always return 200 {ok:false} for the frontend to display consistently.",
+    "periodic_local_status polls every 30s but the interval starts with sleep(30) BEFORE the first refresh – on server restart the first refresh happens after 30s. Consider running one refresh at startup then loop.",
+    "public_local_device does not include 'has_ip'/'has_key' explicitly in older devices without those fields; verify defaults for legacy docs (looks OK since dict.get patterns are used)."
+  ],
+  "updated_files": ["/app/backend/tests/test_local_iter22.py"],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "admin@climazone.fr / Admin1234!",
+  "seed_data_creation": "None – uses existing demo installation & demo-incl/demo-excl seed devices.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "New endpoints: PUT /api/admin/tuya/local/devices/{tuya_id}/dps-map (super_admin), POST /api/admin/tuya/local/refresh-status (super_admin+moderator). New UI: /ecran/{iid} kiosk route (data-testid kiosk-*), dashboard control-mode-toggle + screen-mode-btn, LocalManager local-refresh-btn + local-online/local-offline badges + local-diag-{id} (disabled if no IP/key). Real LAN pilot cannot be e2e tested in cloud env; simulate/tick launches apply_local_control as background task (asyncio.create_task) so tick stays fast even in local mode. LocalManager lives in Home.jsx under 'Paramètres' tab (not in InstallationDashboard).",
+  "rca of the issue": "N/A – all iteration-22 features validated."
+}

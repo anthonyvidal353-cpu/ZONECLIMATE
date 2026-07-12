@@ -739,6 +739,9 @@ def public_local_device(d: dict) -> dict:
         "project_name": d.get("project_name"),
         "last_seen_at": d.get("last_seen_at"),
         "updated_at": d.get("updated_at"),
+        "dps_map": d.get("dps_map") or {},
+        "online": d.get("online"),
+        "last_status_at": d.get("last_status_at"),
     }
 
 
@@ -833,9 +836,72 @@ async def local_test(payload: dict, user: dict = Depends(require_roles("super_ad
         status = await tuya_local.read_status(
             tuya_id, d["ip"], tuya.decrypt_secret(d["local_key_enc"]), d.get("version", "3.3"))
     except Exception as e:  # noqa: BLE001
+        await db.local_devices.update_one({"tuya_id": tuya_id},
+                                          {"$set": {"online": False, "last_status_at": now_iso()}})
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    await db.local_devices.update_one({"tuya_id": tuya_id}, {"$set": {"last_seen_at": now_iso()}})
+    await db.local_devices.update_one({"tuya_id": tuya_id},
+                                      {"$set": {"last_seen_at": now_iso(), "online": True,
+                                                "last_status_at": now_iso()}})
     return {"ok": True, "dps": status.get("dps", status)}
+
+
+@api_router.put("/admin/tuya/local/devices/{tuya_id}/dps-map")
+async def local_set_dps_map(tuya_id: str, payload: dict, user: dict = Depends(require_roles("super_admin"))):
+    """Enregistre la correspondance des Data Points (DPS) d'un appareil.
+    Ex gainable : {"power":"1","mode":"4","mode_hot":"hot","mode_cold":"cold",
+                   "setpoint":"2","setpoint_scale":1,"fan":"5","fan_low":"low","fan_med":"mid","fan_high":"high"}
+    Ex thermostat : {"power":"1","setpoint":"2","setpoint_scale":1}"""
+    dm = payload.get("dps_map")
+    if not isinstance(dm, dict):
+        raise HTTPException(400, "dps_map invalide")
+    dm = {k: v for k, v in dm.items() if v not in (None, "")}
+    res = await db.local_devices.update_one({"tuya_id": tuya_id}, {"$set": {"dps_map": dm}})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Appareil local introuvable")
+    d = await db.local_devices.find_one({"tuya_id": tuya_id}, {"_id": 0})
+    return public_local_device(d)
+
+
+async def _refresh_one_status(d: dict) -> bool:
+    if not d.get("ip") or not d.get("local_key_enc"):
+        await db.local_devices.update_one({"tuya_id": d["tuya_id"]},
+                                          {"$set": {"online": False, "last_status_at": now_iso()}})
+        return False
+    try:
+        await tuya_local.read_status(d["tuya_id"], d["ip"],
+                                     tuya.decrypt_secret(d["local_key_enc"]), d.get("version", "3.3"))
+        online = True
+    except Exception:  # noqa: BLE001
+        online = False
+    await db.local_devices.update_one({"tuya_id": d["tuya_id"]},
+                                      {"$set": {"online": online, "last_status_at": now_iso(),
+                                                **({"last_seen_at": now_iso()} if online else {})}})
+    return online
+
+
+@api_router.post("/admin/tuya/local/refresh-status")
+async def local_refresh_status(user: dict = Depends(require_roles("super_admin", "moderator"))):
+    """Interroge chaque appareil inclus pour mettre à jour son statut en ligne/hors-ligne.
+    Ne fonctionne qu'en local (même réseau que les appareils)."""
+    docs = await db.local_devices.find({"included": True}).to_list(500)
+    for d in docs:
+        await _refresh_one_status(d)
+    out = await db.local_devices.find({}, {"_id": 0}).sort("updated_at", -1).to_list(500)
+    return [public_local_device(x) for x in out]
+
+
+LOCAL_STATUS_INTERVAL_SEC = 30
+
+
+async def periodic_local_status():
+    while True:
+        await asyncio.sleep(LOCAL_STATUS_INTERVAL_SEC)
+        try:
+            docs = await db.local_devices.find({"included": True, "ip": {"$ne": None}}).to_list(500)
+            for d in docs:
+                await _refresh_one_status(d)
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"Poll statut local ignoré: {e}")
 
 
 # ----------------------------- Mise à jour de l'application (OTA) -----------------------------
@@ -1629,7 +1695,81 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
 
     docs = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
     sysd = await db.system.find_one({"installation_id": iid}, {"_id": 0})
+
+    # 7) Pilotage local RÉEL (LAN) — uniquement en mode "local". Non bloquant, tolérant aux erreurs.
+    if sysd.get("control_mode") == "local":
+        sys_state = {"power": bool(sysd.get("power")), "mode": sysd.get("mode"),
+                     "unit_running": unit_running, "purging": purging,
+                     "unit_setpoint": unit_setpoint, "fan_level": fan_level}
+        asyncio.create_task(apply_local_control(iid, sys_state, docs))
+
     return {"zones": [Zone(**d) for d in docs], "system": System(**sysd)}
+
+
+async def _local_device_for(tuya_id):
+    if not tuya_id:
+        return None
+    d = await db.local_devices.find_one({"tuya_id": tuya_id})
+    if not d or not d.get("ip") or not d.get("local_key_enc"):
+        return None
+    return d
+
+
+async def _send_local(dev_local, dps: dict):
+    if not dps:
+        return
+    await tuya_local.set_dps(dev_local["tuya_id"], dev_local["ip"],
+                             tuya.decrypt_secret(dev_local["local_key_enc"]),
+                             dev_local.get("version", "3.3"), dps)
+
+
+async def apply_local_control(iid: str, sys_state: dict, zones: list):
+    """Traduit l'état calculé par l'algorithme en commandes physiques Tuya (DPS) sur le LAN."""
+    try:
+        devs = await db.devices.find({"installation_id": iid, "tuya_id": {"$ne": None}}, {"_id": 0}).to_list(200)
+        # --- Gainable ---
+        gain = next((x for x in devs if x.get("category") == "gainable"), None)
+        if gain:
+            ld = await _local_device_for(gain.get("tuya_id"))
+            if ld:
+                dm = ld.get("dps_map") or {}
+                dps = {}
+                if dm.get("power"):
+                    dps[str(dm["power"])] = bool(sys_state["power"] and (sys_state["unit_running"] or sys_state["purging"]))
+                if dm.get("setpoint") and sys_state["unit_running"]:
+                    scale = float(dm.get("setpoint_scale") or 1)
+                    dps[str(dm["setpoint"])] = int(round(sys_state["unit_setpoint"] * scale))
+                if dm.get("mode"):
+                    mv = dm.get("mode_cold") if sys_state["mode"] == "froid" else dm.get("mode_hot")
+                    if mv not in (None, ""):
+                        dps[str(dm["mode"])] = mv
+                if dm.get("fan"):
+                    fv = {"faible": dm.get("fan_low"), "moyenne": dm.get("fan_med"),
+                          "forte": dm.get("fan_high")}.get(sys_state["fan_level"])
+                    if fv not in (None, ""):
+                        dps[str(dm["fan"])] = fv
+                await _send_local(ld, dps)
+        # --- Thermostats (consigne + marche par zone) ---
+        zmap = {z["id"]: z for z in zones}
+        for dev in devs:
+            if dev.get("category") != "thermostat" or not dev.get("zone_id"):
+                continue
+            z = zmap.get(dev["zone_id"])
+            if not z:
+                continue
+            ld = await _local_device_for(dev.get("tuya_id"))
+            if not ld:
+                continue
+            dm = ld.get("dps_map") or {}
+            dps = {}
+            if dm.get("power"):
+                dps[str(dm["power"])] = bool(z.get("active"))
+            if dm.get("setpoint"):
+                scale = float(dm.get("setpoint_scale") or 1)
+                dps[str(dm["setpoint"])] = int(round(z["setpoint"] * scale))
+            await _send_local(ld, dps)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Contrôle local échoué (iid={iid}): {type(e).__name__}: {e}")
 
 
 @api_router.get("/installations/{iid}/history")
@@ -1721,6 +1861,7 @@ async def startup():
     except Exception as e:  # noqa: BLE001
         logger.error(f"Sauvegarde initiale échouée: {e}")
     app.state.backup_task = asyncio.create_task(periodic_backup())
+    app.state.local_status_task = asyncio.create_task(periodic_local_status())
 
 
 @app.on_event("shutdown")
@@ -1733,4 +1874,7 @@ async def shutdown_db_client():
     task = getattr(app.state, "backup_task", None)
     if task:
         task.cancel()
+    lt = getattr(app.state, "local_status_task", None)
+    if lt:
+        lt.cancel()
     client.close()

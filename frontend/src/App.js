@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Login from "@/pages/Login";
 import Home from "@/pages/Home";
 import InstallationDashboard from "@/pages/InstallationDashboard";
+import KioskDisplay from "@/pages/KioskDisplay";
 
 function Splash() {
   return (
@@ -42,6 +43,7 @@ function App() {
             <Route path="/login" element={<LoginRoute />} />
             <Route path="/" element={<Protected><Home /></Protected>} />
             <Route path="/installations/:id" element={<Protected><InstallationDashboard /></Protected>} />
+            <Route path="/ecran/:id" element={<Protected><KioskDisplay /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

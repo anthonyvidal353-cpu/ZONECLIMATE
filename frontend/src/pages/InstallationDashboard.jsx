@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { SquaresFour, ListChecks, CalendarBlank, UsersThree, ArrowLeft, Thermometer, ChartLine, Wind } from "@phosphor-icons/react";
+import { SquaresFour, ListChecks, CalendarBlank, UsersThree, ArrowLeft, Thermometer, ChartLine, Wind, Monitor, HardDrives, CloudArrowUp } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { AppShell } from "../components/AppShell";
 import { MasterZoneCard } from "../components/MasterZoneCard";
@@ -186,6 +186,28 @@ export default function InstallationDashboard() {
           <p className="text-sm text-zinc-500 mt-1">
             Maître : {masterZone?.name || "—"} {!canWrite && "· (consultation seule)"}
           </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {canWrite && (
+            <button
+              data-testid="control-mode-toggle"
+              onClick={() => changeSystem({ control_mode: system.control_mode === "local" ? "cloud" : "local" })}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:border-heat transition-colors duration-200"
+              title="Pilotage Cloud (API Tuya) ou Local (LAN via automate)"
+            >
+              {system.control_mode === "local"
+                ? <><HardDrives weight="fill" size={15} className="text-heat" /> Pilotage local</>
+                : <><CloudArrowUp weight="fill" size={15} className="text-cool" /> Pilotage cloud</>}
+            </button>
+          )}
+          <button
+            data-testid="screen-mode-btn"
+            onClick={() => navigate(`/ecran/${iid}`)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 text-white px-4 py-2 text-xs font-semibold hover:bg-zinc-800 transition-colors duration-200"
+            title="Ouvrir le mode écran tactile (kiosque 800×480)"
+          >
+            <Monitor weight="fill" size={15} /> Mode écran
+          </button>
         </div>
       </div>
 

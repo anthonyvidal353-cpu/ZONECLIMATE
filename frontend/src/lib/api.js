@@ -55,6 +55,8 @@ export const api = {
   localScan: (timeout = 6) => http.post("/admin/tuya/local/scan", null, { params: { timeout } }).then((r) => r.data),
   localTest: (tuya_id) => http.post("/admin/tuya/local/test", { tuya_id }).then((r) => r.data),
   localSetIncluded: (tuya_id, included) => http.put(`/admin/tuya/local/devices/${tuya_id}`, { included }).then((r) => r.data),
+  localSetDpsMap: (tuya_id, dps_map) => http.put(`/admin/tuya/local/devices/${tuya_id}/dps-map`, { dps_map }).then((r) => r.data),
+  localRefreshStatus: () => http.post("/admin/tuya/local/refresh-status").then((r) => r.data),
   getUpdateInfo: () => http.get("/system/update-info").then((r) => r.data),
   applyUpdate: () => http.post("/system/update").then((r) => r.data),
   // Catalogue QR (admin) + association par QR
