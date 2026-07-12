@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Fire, Snowflake, Power, ArrowsLeftRight, Crown } from "@phosphor-icons/react";
+import { Fire, Snowflake, Power, ArrowsLeftRight, Crown, Drop } from "@phosphor-icons/react";
 
 function zoneState(z, cold) {
   if (!z.active) return { label: "OFF", color: "#71717A", open: false };
@@ -50,7 +50,10 @@ export const PlenumView = ({ zones = [], system }) => {
   const flowingUnit = running || purging;
   const ModeIcon = cold ? Snowflake : Fire;
   const modeColor = cold ? "#2563EB" : "#7C3AED";
-  const openCount = zones.filter((z) => z.damper_open && z.active).length;
+  const vcount = (z) => Math.min(4, Math.max(1, z.valves || 1));
+  const totalValves = zones.reduce((s, z) => s + vcount(z), 0);
+  const openValves = zones.reduce((s, z) => s + (z.damper_open && z.active ? vcount(z) : 0), 0);
+  const loadPct = totalValves ? Math.round((openValves / totalValves) * 100) : 0;
 
   let statusLabel = "Arrêt";
   let statusColor = "#A1A1AA";
@@ -75,6 +78,11 @@ export const PlenumView = ({ zones = [], system }) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+            style={{ background: flowingUnit ? `${statusColor}1A` : "#F4F4F5", color: flowingUnit ? statusColor : "#71717A" }}
+            title="Vannes ouvertes / total — charge du gainable" data-testid="plenum-open-valves">
+            <Drop weight="fill" size={12} /> {openValves}/{totalValves} vannes · {loadPct}%
+          </span>
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full"
             style={{ background: `${statusColor}1A`, color: statusColor }} data-testid="plenum-power">
             <Power weight="bold" size={12} /> {statusLabel}
@@ -98,7 +106,7 @@ export const PlenumView = ({ zones = [], system }) => {
           data-testid="plenum-bar">
           <span className="text-[10px] font-bold uppercase tracking-[0.25em] whitespace-nowrap"
             style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", color: flowingUnit ? "#FFFFFF" : "#71717A" }}>
-            Plénum · {openCount}/{zones.length}
+            Plénum · {openValves}/{totalValves} vannes
           </span>
         </div>
 
