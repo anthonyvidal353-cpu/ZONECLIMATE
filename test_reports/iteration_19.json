@@ -1,0 +1,34 @@
+{
+  "summary": "Regression test after cleaning backend/requirements.txt from 128 to 13 packages. All 11 targeted backend tests PASS. No missing dependency detected — bcrypt, PyJWT, email-validator, motor, tinytuya, httpx, cryptography all import and function correctly. Backend service is healthy.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_requirements_regression.py",
+    "/app/test_reports/pytest/iteration_19.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "requirements.txt is now minimal and pinned: fastapi, uvicorn, motor, pymongo, pydantic, email-validator, python-dotenv, python-multipart, bcrypt, PyJWT, cryptography, httpx, tinytuya — all confirmed used by server.py / tuya_local.py.",
+    "Unresolved bug from iteration 18 (POST /api/installations/{iid}/discover 502 when a bogus project errors and real project has 0 devices) is out of scope for this iteration but still open."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_requirements_regression.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11)",
+    "frontend": "not tested (skipped per request)"
+  },
+  "test_credentials": "admin@climazone.fr / Admin1234! ; token field = 'access_token'",
+  "seed_data_creation": "None — test is read-only + one idempotent sync-keys POST.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend requirements cleanup validated. Verified endpoints: POST /api/auth/login, GET /api/auth/me, GET /api/installations, GET /api/installations/{iid}/system|zones|devices, POST /api/installations/{iid}/simulate/tick (regulation fields unit_running/purging/demand/unit_setpoint/fan_level/control_mode all present), GET /api/admin/tuya/local/devices, POST /api/admin/tuya/local/sync-keys (returned JSON gracefully, tinytuya imports OK), GET /api/admin/tuya/projects, GET /api/admin/tuya/regions. Iteration-18's known discover-502 bug remains untouched.",
+  "rca of the issue": "N/A — no regressions found."
+}
