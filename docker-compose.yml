@@ -25,6 +25,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - CORS_ORIGINS=http://localhost:3000
       - FRONTEND_URL=http://localhost:3000
+      - INAPP_UPDATE_ENABLED=${INAPP_UPDATE_ENABLED:-true}
     depends_on:
       - mongo
     networks:

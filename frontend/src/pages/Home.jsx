@@ -10,6 +10,7 @@ import { CreateInstallationDialog } from "../components/CreateInstallationDialog
 import { TuyaManager } from "../components/TuyaManager";
 import { LocalManager } from "../components/LocalManager";
 import { CatalogManager } from "../components/CatalogManager";import { Button } from "../components/ui/button";
+import { UpdateBanner } from "../components/UpdateBanner";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "../components/ui/dialog";
@@ -208,6 +209,7 @@ export default function Home() {
 
   return (
     <AppShell right={headerRight}>
+      {isAdminView && <UpdateBanner />}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
         <div>
           <p className="overline text-zinc-500">Bienvenue, {user.name}</p>

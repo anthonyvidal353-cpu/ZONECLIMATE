@@ -834,6 +834,68 @@ async def local_test(payload: dict, user: dict = Depends(require_roles("super_ad
     return {"ok": True, "dps": status.get("dps", status)}
 
 
+# ----------------------------- Mise à jour de l'application (OTA) -----------------------------
+REPO_DIR = os.environ.get("REPO_DIR", "/repo")
+INAPP_UPDATE_ENABLED = os.environ.get("INAPP_UPDATE_ENABLED", "true").lower() in ("1", "true", "yes", "on")
+UPDATER_IMAGE = os.environ.get("UPDATER_IMAGE", "docker:27-cli")
+
+
+def _git(*args):
+    import subprocess
+    return subprocess.run(["git", "-C", REPO_DIR, *args], capture_output=True, text=True, timeout=30)
+
+
+def _read_version():
+    for p in (Path(REPO_DIR) / "VERSION", ROOT_DIR.parent / "VERSION"):
+        try:
+            return p.read_text().strip()
+        except Exception:  # noqa: BLE001
+            continue
+    return "dev"
+
+
+@api_router.get("/system/update-info")
+async def update_info(user: dict = Depends(require_roles("super_admin", "moderator"))):
+    info = {"enabled": INAPP_UPDATE_ENABLED, "current_version": _read_version(),
+            "update_available": False, "latest_version": None, "detail": None}
+    if not INAPP_UPDATE_ENABLED:
+        return info
+    try:
+        _git("fetch", "--quiet")
+        cur = _git("rev-parse", "--short", "HEAD")
+        up = _git("rev-parse", "--short", "@{u}")
+        if cur.returncode == 0 and up.returncode == 0:
+            info["current_version"] = f"{info['current_version']} · {cur.stdout.strip()}"
+            info["latest_version"] = up.stdout.strip()
+            info["update_available"] = cur.stdout.strip() != up.stdout.strip()
+        else:
+            info["detail"] = "Vérification Git indisponible sur cet environnement."
+    except Exception as e:  # noqa: BLE001
+        info["detail"] = f"Vérification indisponible ({type(e).__name__})."
+    return info
+
+
+@api_router.post("/system/update")
+async def apply_update(user: dict = Depends(require_roles("super_admin"))):
+    if not INAPP_UPDATE_ENABLED:
+        raise HTTPException(400, "Mise à jour intégrée désactivée sur cet appareil.")
+    try:
+        import docker
+        client = docker.from_env()
+        cmd = ("apk add --no-cache git >/dev/null 2>&1; "
+               "git config --global --add safe.directory /repo; "
+               "cd /repo; git pull; docker compose up -d --build")
+        client.containers.run(
+            UPDATER_IMAGE, ["sh", "-c", cmd], detach=True, remove=True,
+            volumes={"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
+                     REPO_DIR: {"bind": "/repo", "mode": "rw"}},
+            working_dir="/repo")
+        return {"ok": True, "message": "Mise à jour lancée. L'application va redémarrer dans une minute."}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"Impossible de lancer la mise à jour ({type(e).__name__}). "
+                                 "Le socket Docker et le dépôt doivent être montés (configuration Raspberry).")
+
+
 # ----------------------------- Catalogue QR (Admin: super_admin, moderator) -----------------------------
 def public_catalog(c: dict) -> dict:
     return {

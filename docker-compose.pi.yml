@@ -7,6 +7,9 @@
 services:
   backend:
     network_mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/repo
     environment:
       - MONGO_URL=mongodb://127.0.0.1:27017
       - DB_NAME=zoneclimate
@@ -16,6 +19,8 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - CORS_ORIGINS=http://localhost:3000
       - FRONTEND_URL=http://localhost:3000
+      - INAPP_UPDATE_ENABLED=${INAPP_UPDATE_ENABLED:-true}
+      - REPO_DIR=/repo
 
   mongo:
     network_mode: host
