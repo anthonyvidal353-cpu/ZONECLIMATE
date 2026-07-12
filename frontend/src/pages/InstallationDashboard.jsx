@@ -124,6 +124,13 @@ export default function InstallationDashboard() {
     finally { setSyncing(false); }
   };
 
+  const deleteDevice = async (device) => {
+    const updated = await api.deleteDevice(iid, device.id);
+    setDevices(updated);
+    setZones(await api.getZones(iid));
+    toast.success(`Appareil supprimé : ${device.name}`);
+  };
+
   const createSlot = async (data) => {
     const slot = await api.createSlot(iid, data);
     setSlots((s) => [...s, slot]);
@@ -230,7 +237,7 @@ export default function InstallationDashboard() {
               }}
             />
           )}
-          <DevicesPanel devices={devices} onSync={syncDevices} syncing={syncing} canWrite={canWrite} />
+          <DevicesPanel devices={devices} onSync={syncDevices} onDelete={deleteDevice} syncing={syncing} canWrite={canWrite} />
         </div>
       )}
       {tab === "schedule" && <SchedulePanel zones={zones} slots={slots} onCreate={createSlot} onDelete={deleteSlot} canWrite={canWrite} />}

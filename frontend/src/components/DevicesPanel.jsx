@@ -1,9 +1,13 @@
 import { useState } from "react";
-import { WifiHigh, WifiSlash, BatteryMedium, BatteryFull, BatteryLow, Wind, Thermometer, ArrowsClockwise, QrCode } from "@phosphor-icons/react";
+import { WifiHigh, WifiSlash, BatteryMedium, BatteryFull, BatteryLow, Wind, Thermometer, ArrowsClockwise, QrCode, Trash } from "@phosphor-icons/react";
 import { QRCodeSVG } from "qrcode.react";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 const BatteryIcon = ({ level }) => {
   if (level >= 70) return <BatteryFull weight="duotone" size={16} className="text-online" />;
@@ -11,8 +15,21 @@ const BatteryIcon = ({ level }) => {
   return <BatteryLow weight="duotone" size={16} className="text-offline" />;
 };
 
-export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
+export const DevicesPanel = ({ devices, onSync, onDelete, syncing, canWrite = true }) => {
   const [qrDevice, setQrDevice] = useState(null);
+  const [toDelete, setToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(toDelete);
+      setToDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="border border-border/60 bg-[#FFFFFF] rounded-lg">
@@ -82,6 +99,17 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
                 {d.online ? <WifiHigh size={12} weight="bold" /> : <WifiSlash size={12} weight="bold" />}
                 {d.online ? "En ligne" : "Hors ligne"}
               </span>
+              {canWrite && (
+                <button
+                  data-testid={`device-delete-${d.id}`}
+                  onClick={() => setToDelete(d)}
+                  className="w-8 h-8 rounded-full border border-border/70 flex items-center justify-center text-zinc-500 hover:text-offline hover:border-offline/50 transition-colors duration-200 active:scale-95"
+                  title="Supprimer cet appareil"
+                  aria-label="Supprimer cet appareil"
+                >
+                  <Trash size={15} />
+                </button>
+              )}
             </div>
           </motion.div>
         ))}
@@ -102,6 +130,33 @@ export const DevicesPanel = ({ devices, onSync, syncing, canWrite = true }) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && !deleting && setToDelete(null)}>
+        <AlertDialogContent className="bg-[#FFFFFF] border-border/70" data-testid="device-delete-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display tracking-tight flex items-center gap-2">
+              <Trash size={20} className="text-offline" /> Supprimer l'appareil
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-zinc-600">
+              Voulez-vous vraiment supprimer <strong className="text-zinc-900">{toDelete?.name}</strong>
+              {toDelete?.ref_code ? <> (réf. <span className="font-mono-num">{toDelete.ref_code}</span>)</> : null} ?
+              <br />
+              Cette action est <strong className="text-offline">irréversible</strong>. L'appareil sera détaché de sa zone et retiré de cette installation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="device-delete-cancel" disabled={deleting} className="rounded-full">Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="device-delete-confirm"
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              disabled={deleting}
+              className="rounded-full bg-offline text-white hover:bg-offline/90"
+            >
+              {deleting ? "Suppression…" : "Supprimer définitivement"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

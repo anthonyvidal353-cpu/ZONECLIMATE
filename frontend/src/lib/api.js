@@ -82,6 +82,7 @@ export const api = {
   setMaster: (iid, id) => http.post(`/installations/${iid}/zones/${id}/set-master`).then((r) => r.data),
   getDevices: (iid) => http.get(`/installations/${iid}/devices`).then((r) => r.data),
   syncDevices: (iid) => http.post(`/installations/${iid}/devices/sync`).then((r) => r.data),
+  deleteDevice: (iid, deviceId) => http.delete(`/installations/${iid}/devices/${deviceId}`).then((r) => r.data),
   discover: (iid, { count = 1, category = "thermostat", source = "sim" } = {}) =>
     http.post(`/installations/${iid}/discover`, null, { params: { count, category, source } }).then((r) => r.data),
   listPairing: (iid) => http.get(`/installations/${iid}/pairing`).then((r) => r.data),

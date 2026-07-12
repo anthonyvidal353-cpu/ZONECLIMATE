@@ -1243,6 +1243,22 @@ async def sync_devices(iid: str, user: dict = Depends(get_current_user)):
     return await public_devices(iid)
 
 
+@api_router.delete("/installations/{iid}/devices/{device_id}")
+async def delete_device(iid: str, device_id: str, user: dict = Depends(get_current_user)):
+    await get_installation_for(user, iid, write=True)
+    dev = await db.devices.find_one({"installation_id": iid, "id": device_id})
+    if not dev:
+        raise HTTPException(404, "Appareil introuvable")
+    # Détache l'appareil de sa zone si c'était le thermostat associé
+    if dev.get("zone_id"):
+        await db.zones.update_one(
+            {"installation_id": iid, "device_id": device_id},
+            {"$set": {"device_id": None}},
+        )
+    await db.devices.delete_one({"installation_id": iid, "id": device_id})
+    return await public_devices(iid)
+
+
 # ----------------------------- Pairing / Découverte (interroge Tuya) -----------------------------
 def public_pairing(p: dict) -> dict:
     p = dict(p)
