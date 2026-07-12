@@ -54,6 +54,7 @@ export const api = {
   localSyncKeys: () => http.post("/admin/tuya/local/sync-keys").then((r) => r.data),
   localScan: (timeout = 6) => http.post("/admin/tuya/local/scan", null, { params: { timeout } }).then((r) => r.data),
   localTest: (tuya_id) => http.post("/admin/tuya/local/test", { tuya_id }).then((r) => r.data),
+  localSetIncluded: (tuya_id, included) => http.put(`/admin/tuya/local/devices/${tuya_id}`, { included }).then((r) => r.data),
   // Catalogue QR (admin) + association par QR
   catalogDiscover: () => http.post("/admin/catalog/discover").then((r) => r.data),
   listCatalog: () => http.get("/admin/catalog").then((r) => r.data),

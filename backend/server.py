@@ -724,7 +724,9 @@ def public_local_device(d: dict) -> dict:
     return {
         "tuya_id": d.get("tuya_id"),
         "name": d.get("name"),
-        "category": map_tuya_category(d.get("category")),
+        "type": classify_local_device(d.get("category")),
+        "raw_category": d.get("category"),
+        "included": d.get("included", False),
         "product_name": d.get("product_name"),
         "version": d.get("version"),
         "ip_masked": ip_masked,
@@ -766,10 +768,26 @@ async def local_sync_keys(user: dict = Depends(require_roles("super_admin"))):
             }
             if d.get("ip"):
                 update["ip"] = d["ip"]
+            # 1re insertion : on inclut par défaut les thermostats/gainables uniquement.
+            # On ne touche jamais au choix déjà fait par l'utilisateur (setOnInsert).
+            guess_included = classify_local_device(d.get("category")) in ("gainable", "thermostat")
             await db.local_devices.update_one(
-                {"tuya_id": d["tuya_id"]}, {"$set": update}, upsert=True)
+                {"tuya_id": d["tuya_id"]},
+                {"$set": update, "$setOnInsert": {"included": guess_included}},
+                upsert=True)
             saved += 1
     return {"ok": saved > 0, "saved": saved, "errors": errors}
+
+
+@api_router.put("/admin/tuya/local/devices/{tuya_id}")
+async def local_set_included(tuya_id: str, payload: dict, user: dict = Depends(require_roles("super_admin"))):
+    """Inclure/exclure un appareil du système de zoning."""
+    res = await db.local_devices.update_one(
+        {"tuya_id": tuya_id}, {"$set": {"included": bool(payload.get("included"))}})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Appareil local introuvable")
+    d = await db.local_devices.find_one({"tuya_id": tuya_id}, {"_id": 0})
+    return public_local_device(d)
 
 
 @api_router.get("/admin/tuya/local/devices")
@@ -1163,6 +1181,16 @@ NEW_THERMO_NAMES = ["Chambre amis", "Dressing", "Buanderie", "Entrée", "Mezzani
 
 # Correspondance des catégories Tuya -> nos catégories
 TUYA_GAINABLE_CATS = {"kt", "ktkzq", "ktqcztc", "ldcg", "qjsp"}
+TUYA_THERMOSTAT_CATS = {"wk", "wkf", "wkcz", "wkypq", "rs"}
+
+
+def classify_local_device(cat: str) -> str:
+    c = (cat or "").lower()
+    if c in TUYA_GAINABLE_CATS:
+        return "gainable"
+    if c in TUYA_THERMOSTAT_CATS:
+        return "thermostat"
+    return "autre"
 
 
 def map_tuya_category(cat: str) -> str:
