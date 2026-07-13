@@ -39,6 +39,8 @@ Voir /app/memory/test_credentials.md. Admin : admin@climazone.fr / Admin1234! (t
 
 ## Piste matériel en cours (P1)
 - ✅ [2026-06] Pilotage du GAINABLE en Modbus RTU (RS485) via l'automate — CODE PRÊT (validable sur matériel) : module `modbus_gainable.py` (pymodbus 3.14, 9600/N/8/1, FC03/06/10). Registres : 0x0201 marche, 0x0202 mode (1=froid,4=chaud,5=auto), 0x0203 consigne ×0,1°C (160-310), 0x0204 ventilation (2/4/6/auto=1). Capteurs lus : 0x0318 ambiance, 0xA647 reprise d'air, 0xA616 extérieur (formule (val-1000)/10). System.modbus_enabled/port/slave + relevés gainable_room/return/outdoor_temp. Endpoints : POST /gainable/modbus/test (renvoie les 3 temps, dégradation gracieuse). Branché dans apply_local_control (écriture commandes + lecture capteurs chaque tick). UI : GainableModbusDialog (activer/port/slave/test) + bandeau relevés (ambiance/reprise/extérieur) sur l'onglet Zones. Architecture : thermostats zones+vannes = Tuya Wi-Fi, gainable = Modbus, mode imposé par thermostat maître. VALIDÉ testing_agent iteration_24 (100% backend) + UI vérifiée. NON testé sur matériel réel.
+- ✅ [2026-06] Sécurité reprise d'air (Modbus) : gainable coupé si reprise ≥ 35°C en chaud (surchauffe) ou ≤ 8°C en froid (anti-gel) — System.safety_note + bandeau rouge dashboard. Actif seulement si modbus_enabled + reprise mesurée. Testé curl (38°C chaud→coupé) + UI + non-régression.
+- ℹ️ [2026-06] Décision user : pour l'instant, gainable piloté UNIQUEMENT en filaire Modbus (Pi), pas via Tuya. Déjà supporté nativement (pilotage Tuya du gainable ignoré si aucun appareil Tuya gainable). Thermostats Tuya (zones/vannes) ajoutés plus tard.
 - Tout VALIDÉ testing_agent iteration_22 (100% backend + frontend).
 
 ## Backlog priorisé

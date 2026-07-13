@@ -219,6 +219,7 @@ class System(BaseModel):
     gainable_return_temp: Optional[float] = None
     gainable_outdoor_temp: Optional[float] = None
     gainable_readings_at: Optional[str] = None
+    safety_note: Optional[str] = None
     fault_codes: List[FaultCode] = []
     # État de régulation du gainable (calculé par l'algorithme)
     unit_running: bool = False          # compresseur actif
@@ -1620,6 +1621,8 @@ REG_DEADBAND = 0.5        # zone morte (°C) autour de la consigne
 REG_PURGE_SECONDS = 30    # purge ventilation registres ouverts avant arrêt
 REG_FULL_OPEN_DELTA = 2.0  # écart (°C) au-delà duquel la vanne modulante est 100 % ouverte
 REG_MIN_OPEN = 30         # ouverture mini (%) d'une vanne modulante qui appelle
+SAFETY_RETURN_MAX_HEAT = 35.0  # reprise d'air max en chaud (protection surchauffe)
+SAFETY_RETURN_MIN_COOL = 8.0   # reprise d'air min en froid (anti-gel)
 
 
 def _opening_for_demand(demand: float) -> int:
@@ -1711,6 +1714,17 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
             else:
                 purge_until = None
 
+    # 2b) Sécurité reprise d'air (uniquement si mesurée via Modbus)
+    safety_note = None
+    ret = system.gainable_return_temp
+    if system.modbus_enabled and ret is not None and (unit_running or purging):
+        if heat and ret >= SAFETY_RETURN_MAX_HEAT:
+            unit_running, purging, purge_until = False, False, None
+            safety_note = f"Sécurité : reprise d'air {ret:.1f}°C ≥ {SAFETY_RETURN_MAX_HEAT:.0f}°C — gainable coupé (protection surchauffe)"
+        elif (not heat) and ret <= SAFETY_RETURN_MIN_COOL:
+            unit_running, purging, purge_until = False, False, None
+            safety_note = f"Sécurité : reprise d'air {ret:.1f}°C ≤ {SAFETY_RETURN_MIN_COOL:.0f}°C — gainable coupé (anti-gel)"
+
     # 3) Modulation de puissance (consigne modulée + ventilation effective)
     if unit_running:
         offset = min(max(max_demand, 0.0), 5.0)  # 0..5°C de sur/sous-consigne
@@ -1770,6 +1784,7 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
         "demand": round(max_demand, 1),
         "unit_setpoint": unit_setpoint,
         "fan_level": fan_level,
+        "safety_note": safety_note,
         "updated_at": now.isoformat(),
     }})
 

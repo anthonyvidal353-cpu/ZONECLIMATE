@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { SquaresFour, ListChecks, CalendarBlank, UsersThree, ArrowLeft, Thermometer, ChartLine, Wind, Monitor, HardDrives, CloudArrowUp, Cpu } from "@phosphor-icons/react";
+import { SquaresFour, ListChecks, CalendarBlank, UsersThree, ArrowLeft, Thermometer, ChartLine, Wind, Monitor, HardDrives, CloudArrowUp, Cpu, Warning } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { AppShell } from "../components/AppShell";
 import { MasterZoneCard } from "../components/MasterZoneCard";
@@ -273,6 +273,11 @@ export default function InstallationDashboard() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          {system.safety_note && (
+            <div data-testid="safety-note" className="flex items-center gap-2 rounded-lg border border-offline/40 bg-offline/10 text-offline px-4 py-2.5 text-sm font-semibold">
+              <Warning weight="fill" size={18} /> {system.safety_note}
             </div>
           )}
           {masterZone && (
