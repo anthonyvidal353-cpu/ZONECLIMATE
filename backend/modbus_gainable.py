@@ -15,7 +15,13 @@ REG_ONOFF = 0x0201
 REG_MODE = 0x0202
 REG_SETPOINT = 0x0203
 REG_FAN = 0x0204
-REG_ROOM_TEMP = 0x0318
+REG_ROOM_TEMP = 0x0318      # température ambiante intérieure
+REG_RETURN_AIR = 0xA647     # température de reprise d'air
+REG_OUTDOOR = 0xA616        # température extérieure
+
+
+def _to_celsius(raw):
+    return round((raw - 1000) / 10.0, 1)
 
 # Mode : 1=Froid, 2=Déshu, 4=Chaud, 5=Auto
 MODE_MAP = {"froid": 1, "dehum": 2, "chaud": 4, "auto": 5}
@@ -65,8 +71,21 @@ def _read_temp_sync(port, slave):
         rr = c.read_holding_registers(REG_ROOM_TEMP, count=1, device_id=slave)  # FC 03
         if rr.isError():
             raise IOError(f"Lecture Modbus échouée : {rr}")
-        raw = rr.registers[0]
-        return round((raw - 1000) / 10.0, 1)
+        return _to_celsius(rr.registers[0])
+    finally:
+        c.close()
+
+
+def _read_sensors_sync(port, slave):
+    c = _client(port)
+    if not c.connect():
+        raise ConnectionError(f"Port série {port} injoignable")
+    out = {}
+    try:
+        for key, addr in (("room", REG_ROOM_TEMP), ("return_air", REG_RETURN_AIR), ("outdoor", REG_OUTDOOR)):
+            rr = c.read_holding_registers(addr, count=1, device_id=slave)
+            out[key] = None if rr.isError() else _to_celsius(rr.registers[0])
+        return out
     finally:
         c.close()
 
@@ -81,3 +100,8 @@ async def send_gainable(port, slave, state: dict):
 async def read_room_temp(port, slave):
     """Lit la température ambiante mesurée par le gainable (°C)."""
     return await asyncio.to_thread(_read_temp_sync, port, int(slave))
+
+
+async def read_sensors(port, slave):
+    """Lit ambiance, reprise d'air et température extérieure (°C)."""
+    return await asyncio.to_thread(_read_sensors_sync, port, int(slave))

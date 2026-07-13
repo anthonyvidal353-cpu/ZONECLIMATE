@@ -37,8 +37,12 @@ export const GainableModbusDialog = ({ open, onOpenChange, iid, system, onSaved 
       await api.updateSystem(iid, { modbus_port: port.trim(), modbus_slave: Number(slave) || 1 });
       const res = await api.testGainableModbus(iid);
       setResult(res);
-      if (res.ok) toast.success(`Gainable détecté · ${res.room_temp} °C`);
-      else toast.error("Pas de réponse du gainable");
+      if (res.ok) {
+        toast.success(`Gainable détecté · ambiance ${res.room_temp} °C`);
+        try { onSaved?.(await api.getSystem(iid)); } catch { /* ignore */ }
+      } else {
+        toast.error("Pas de réponse du gainable");
+      }
     } catch (e) {
       toast.error(formatApiErrorDetail(e.response?.data?.detail));
     } finally { setTesting(false); }
@@ -88,7 +92,7 @@ export const GainableModbusDialog = ({ open, onOpenChange, iid, system, onSaved 
           {result && (
             <div data-testid="modbus-test-result" className={`rounded-md text-xs px-3 py-2 ${result.ok ? "bg-online/10 text-online" : "bg-offline/10 text-offline"}`}>
               {result.ok
-                ? `✓ Gainable détecté sur ${result.port} (esclave ${result.slave}) — température ambiante : ${result.room_temp} °C`
+                ? `✓ Gainable détecté sur ${result.port} (esclave ${result.slave}) — ambiance ${result.room_temp} °C · reprise d'air ${result.return_temp ?? "—"} °C · extérieur ${result.outdoor_temp ?? "—"} °C`
                 : `✗ ${result.error}`}
             </div>
           )}

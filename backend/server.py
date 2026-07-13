@@ -214,6 +214,11 @@ class System(BaseModel):
     modbus_enabled: bool = False
     modbus_port: str = "/dev/ttyUSB0"
     modbus_slave: int = 1
+    # Relevés lus sur le gainable (Modbus) — lecture seule
+    gainable_room_temp: Optional[float] = None
+    gainable_return_temp: Optional[float] = None
+    gainable_outdoor_temp: Optional[float] = None
+    gainable_readings_at: Optional[str] = None
     fault_codes: List[FaultCode] = []
     # État de régulation du gainable (calculé par l'algorithme)
     unit_running: bool = False          # compresseur actif
@@ -1247,8 +1252,14 @@ async def gainable_modbus_test(iid: str, user: dict = Depends(get_current_user))
     port = sysd.get("modbus_port") or "/dev/ttyUSB0"
     slave = int(sysd.get("modbus_slave") or 1)
     try:
-        temp = await modbus_gainable.read_room_temp(port, slave)
-        return {"ok": True, "room_temp": temp, "port": port, "slave": slave}
+        s = await modbus_gainable.read_sensors(port, slave)
+        await db.system.update_one({"installation_id": iid}, {"$set": {
+            "gainable_room_temp": s.get("room"),
+            "gainable_return_temp": s.get("return_air"),
+            "gainable_outdoor_temp": s.get("outdoor"),
+            "gainable_readings_at": now_iso()}})
+        return {"ok": True, "room_temp": s.get("room"), "return_temp": s.get("return_air"),
+                "outdoor_temp": s.get("outdoor"), "port": port, "slave": slave}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "port": port, "slave": slave}
 
@@ -1807,7 +1818,16 @@ async def apply_local_control(iid: str, sys_state: dict, zones: list):
                  "unit_running": sys_state["unit_running"], "purging": sys_state["purging"],
                  "unit_setpoint": sys_state["unit_setpoint"], "fan_level": sys_state["fan_level"]})
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"Modbus gainable échoué (iid={iid}): {type(e).__name__}: {e}")
+            logger.warning(f"Modbus gainable (écriture) échoué (iid={iid}): {type(e).__name__}: {e}")
+        try:
+            s = await modbus_gainable.read_sensors(sys_state["modbus_port"], sys_state["modbus_slave"])
+            await db.system.update_one({"installation_id": iid}, {"$set": {
+                "gainable_room_temp": s.get("room"),
+                "gainable_return_temp": s.get("return_air"),
+                "gainable_outdoor_temp": s.get("outdoor"),
+                "gainable_readings_at": now_iso()}})
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"Modbus gainable (lecture capteurs) ignoré (iid={iid}): {e}")
     try:
         devs = await db.devices.find({"installation_id": iid, "tuya_id": {"$ne": None}}, {"_id": 0}).to_list(200)
         # --- Gainable ---

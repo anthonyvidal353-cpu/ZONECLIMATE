@@ -256,6 +256,25 @@ export default function InstallationDashboard() {
 
       {tab === "zones" && (
         <div className="space-y-6">
+          {system.modbus_enabled && (system.gainable_room_temp != null || system.gainable_return_temp != null || system.gainable_outdoor_temp != null) && (
+            <div data-testid="gainable-readings" className="flex flex-wrap gap-3">
+              {[
+                { k: "gainable_room_temp", label: "Ambiance gainable", icon: Thermometer },
+                { k: "gainable_return_temp", label: "Reprise d'air", icon: Wind },
+                { k: "gainable_outdoor_temp", label: "Extérieur", icon: CloudArrowUp },
+              ].map(({ k, label, icon: Ic }) => (
+                <div key={k} data-testid={`reading-${k}`} className="flex items-center gap-2.5 rounded-lg border border-border/60 bg-white px-4 py-2.5">
+                  <Ic weight="duotone" size={20} className="text-heat" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
+                    <p className="font-mono-num text-lg font-semibold leading-none">
+                      {system[k] != null ? `${system[k].toFixed(1)}°` : "—"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {masterZone && (
             <MasterZoneCard zone={masterZone} system={system} canWrite={canWrite}
               onSystem={changeSystem} onMasterPower={masterPower} onSetpoint={setZoneSetpoint}
