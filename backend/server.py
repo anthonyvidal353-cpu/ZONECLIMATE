@@ -24,6 +24,7 @@ from typing import List, Optional
 
 import tuya
 import tuya_local
+import modbus_gainable
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -209,6 +210,10 @@ class System(BaseModel):
     master_setpoint: float = 21.0
     fan_speed: str = "auto"
     control_mode: str = "cloud"         # cloud (API Tuya) | local (LAN via Raspberry/PC)
+    # Gainable piloté en Modbus RTU (RS485) via l'automate
+    modbus_enabled: bool = False
+    modbus_port: str = "/dev/ttyUSB0"
+    modbus_slave: int = 1
     fault_codes: List[FaultCode] = []
     # État de régulation du gainable (calculé par l'algorithme)
     unit_running: bool = False          # compresseur actif
@@ -286,6 +291,9 @@ class SystemUpdate(BaseModel):
     master_setpoint: Optional[float] = None
     fan_speed: Optional[str] = None
     control_mode: Optional[str] = None
+    modbus_enabled: Optional[bool] = None
+    modbus_port: Optional[str] = None
+    modbus_slave: Optional[int] = None
 
 
 class ScheduleSlotCreate(BaseModel):
@@ -1228,6 +1236,23 @@ async def update_system(iid: str, payload: SystemUpdate, user: dict = Depends(ge
     return System(**doc)
 
 
+@api_router.post("/installations/{iid}/gainable/modbus/test")
+async def gainable_modbus_test(iid: str, user: dict = Depends(get_current_user)):
+    """Teste la liaison Modbus avec le gainable en lisant la température ambiante.
+    Ne fonctionne que sur l'automate raccordé au bus RS485."""
+    await get_installation_for(user, iid, write=True)
+    sysd = await db.system.find_one({"installation_id": iid}, {"_id": 0})
+    if not sysd:
+        raise HTTPException(404, "Système introuvable")
+    port = sysd.get("modbus_port") or "/dev/ttyUSB0"
+    slave = int(sysd.get("modbus_slave") or 1)
+    try:
+        temp = await modbus_gainable.read_room_temp(port, slave)
+        return {"ok": True, "room_temp": temp, "port": port, "slave": slave}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "port": port, "slave": slave}
+
+
 @api_router.post("/installations/{iid}/system/master-power")
 async def master_power(iid: str, on: bool, user: dict = Depends(get_current_user)):
     await get_installation_for(user, iid, write=True)
@@ -1744,7 +1769,10 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
     if sysd.get("control_mode") == "local":
         sys_state = {"power": bool(sysd.get("power")), "mode": sysd.get("mode"),
                      "unit_running": unit_running, "purging": purging,
-                     "unit_setpoint": unit_setpoint, "fan_level": fan_level}
+                     "unit_setpoint": unit_setpoint, "fan_level": fan_level,
+                     "modbus_enabled": bool(sysd.get("modbus_enabled")),
+                     "modbus_port": sysd.get("modbus_port") or "/dev/ttyUSB0",
+                     "modbus_slave": int(sysd.get("modbus_slave") or 1)}
         asyncio.create_task(apply_local_control(iid, sys_state, docs))
 
     return {"zones": [Zone(**d) for d in docs], "system": System(**sysd)}
@@ -1768,7 +1796,18 @@ async def _send_local(dev_local, dps: dict):
 
 
 async def apply_local_control(iid: str, sys_state: dict, zones: list):
-    """Traduit l'état calculé par l'algorithme en commandes physiques Tuya (DPS) sur le LAN."""
+    """Traduit l'état calculé par l'algorithme en commandes physiques.
+    Gainable → Modbus RTU (si activé). Thermostats de zone + vannes → Tuya (LAN)."""
+    # --- Gainable via Modbus RTU (RS485) ---
+    if sys_state.get("modbus_enabled"):
+        try:
+            await modbus_gainable.send_gainable(
+                sys_state["modbus_port"], sys_state["modbus_slave"],
+                {"power": sys_state["power"], "mode": sys_state["mode"],
+                 "unit_running": sys_state["unit_running"], "purging": sys_state["purging"],
+                 "unit_setpoint": sys_state["unit_setpoint"], "fan_level": sys_state["fan_level"]})
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Modbus gainable échoué (iid={iid}): {type(e).__name__}: {e}")
     try:
         devs = await db.devices.find({"installation_id": iid, "tuya_id": {"$ne": None}}, {"_id": 0}).to_list(200)
         # --- Gainable ---

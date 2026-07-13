@@ -1,0 +1,20 @@
+{
+  "summary": "Iteration 24 — Backend Modbus gainable (RS485) : 9/9 pytest OK. Persistance config (modbus_enabled/port/slave), dégradation gracieuse du endpoint /gainable/modbus/test (HTTP 200, ok:false, error 'injoignable'), stabilité du tick en mode local+modbus (task background tolérante), régressions auth + zones/devices/setpoint/master-refusé toutes vertes. Encodage build_commands validé (chaud/forte/22.5 → {513:1,514:4,515:225,516:6}, off, clamp 310). État remis à cloud + modbus_enabled=false.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_modbus_iter24.py", "/app/test_reports/pytest/iter24.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "modbus_gainable.py : bien isolé, testable, chemins d'erreur clairs (ConnectionError/IOError). OK.",
+    "L'endpoint /gainable/modbus/test attrape correctement les exceptions et renvoie {ok:false, error, port, slave} avec HTTP 200 → dégradation gracieuse conforme.",
+    "apply_local_control lance send_gainable en tâche de fond (asyncio.to_thread via pymodbus) et le tick ne plante pas quand le port est indisponible → tolérant.",
+    "Note mineure : le message d'erreur retourné contient 'Port série … injoignable' — bien lisible par l'UI FR."
+  ],
+  "updated_files": ["/app/backend/tests/test_modbus_iter24.py"],
+  "success_rate": {"backend": "100%", "frontend": "n/a"},
+  "test_credentials": "admin@climazone.fr / Admin1234!",
+  "seed_data_creation": "aucune",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Installation démo 8dd6f7e4... : control_mode=cloud, modbus_enabled=false (restauré). Le vrai bus RS485 n'est pas testable en cloud — seul le chemin d'erreur est validé. La suite iter24 est réutilisable pour non-régression Modbus."
+}
