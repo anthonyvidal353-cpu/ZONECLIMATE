@@ -2,12 +2,14 @@ import { motion } from "framer-motion";
 import { Fire, Snowflake, Power, ArrowsLeftRight, Crown, Drop } from "@phosphor-icons/react";
 
 function zoneState(z, cold) {
-  if (!z.active) return { label: "OFF", color: "#71717A", open: false };
-  if (!z.damper_open) return { label: "FERMÉ", color: "#27272A", open: false };
+  const opening = typeof z.damper_opening === "number" ? z.damper_opening : (z.damper_open ? 100 : 0);
+  if (!z.active) return { label: "OFF", color: "#71717A", open: false, opening: 0 };
+  if (!z.damper_open) return { label: "FERMÉ", color: "#27272A", open: false, opening: 0 };
   return {
-    label: "OUVERT",
+    label: z.proportional && opening < 100 ? `OUVERT ${opening}%` : "OUVERT",
     color: cold ? "#2563EB" : "#7C3AED",
     open: true,
+    opening,
   };
 }
 

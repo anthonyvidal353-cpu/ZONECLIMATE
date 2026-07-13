@@ -219,10 +219,12 @@ class Zone(BaseModel):
     current_temp: float = 21.0
     setpoint: float = 21.0
     damper_open: bool = True
+    damper_opening: int = 100    # degré d'ouverture 0–100 % (proportionnel ; tout-ou-rien = 0/100)
     active: bool = True
     device_id: Optional[str] = None
     is_master: bool = False
     valves: int = 1          # nombre de vannes/registres pilotés par le thermostat (1 à 4)
+    proportional: bool = False   # True = vanne modulante (0–100 %), False = tout-ou-rien
     order: int = 0
 
 
@@ -266,6 +268,7 @@ class ZoneUpdate(BaseModel):
     active: Optional[bool] = None
     name: Optional[str] = None
     valves: Optional[int] = None
+    proportional: Optional[bool] = None
 
 
 class SystemUpdate(BaseModel):
@@ -1570,6 +1573,16 @@ async def associate_qr(iid: str, payload: AssociateQR, user: dict = Depends(get_
 # ----------------------------- Simulation -----------------------------
 REG_DEADBAND = 0.5        # zone morte (°C) autour de la consigne
 REG_PURGE_SECONDS = 30    # purge ventilation registres ouverts avant arrêt
+REG_FULL_OPEN_DELTA = 2.0  # écart (°C) au-delà duquel la vanne modulante est 100 % ouverte
+REG_MIN_OPEN = 30         # ouverture mini (%) d'une vanne modulante qui appelle
+
+
+def _opening_for_demand(demand: float) -> int:
+    """Degré d'ouverture proportionnel (0–100 %) d'une vanne modulante selon la demande."""
+    if demand <= 0:
+        return 0
+    pct = int(round(min(1.0, demand / REG_FULL_OPEN_DELTA) * 100))
+    return max(REG_MIN_OPEN, min(100, pct))
 
 
 def _fan_for_demand(d: float) -> str:
@@ -1619,6 +1632,7 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
             continue
         active_setpoints.append(z["setpoint"])
         demand = (z["setpoint"] - z["current_temp"]) if heat else (z["current_temp"] - z["setpoint"])
+        z["_demand"] = demand
         if demand > max_demand:
             max_demand = demand
         if demand > REG_DEADBAND:
@@ -1673,20 +1687,27 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
     else:
         unit_setpoint, fan_level = 0.0, "arrêt"
 
-    # 4) Position des registres + 5) évolution des températures (simulée)
+    # 4) Position des registres (ouverture proportionnelle) + 5) évolution des températures (simulée)
     for z in zones:
         if not z["active"]:
-            damper = False
+            damper, opening = False, 0
         elif purging:
-            damper = True                     # purge : tous les registres ouverts
+            damper, opening = True, 100          # purge : tous les registres grands ouverts
         elif unit_running:
             damper = bool(z.get("_call", z["damper_open"]))
+            if not damper:
+                opening = 0
+            elif z.get("proportional"):
+                opening = _opening_for_demand(max(z.get("_demand", 0.0), 0.0))
+            else:
+                opening = 100                    # vanne tout-ou-rien : 100 % quand elle appelle
         else:
-            damper = False
+            damper, opening = False, 0
 
         cur = z["current_temp"]
         if unit_running and z["active"] and damper:
-            target, step = z["setpoint"], 0.4
+            # Plus la vanne est ouverte, plus la zone se rapproche vite de sa consigne
+            target, step = z["setpoint"], 0.4 * (opening / 100.0 if opening else 1.0)
         elif purging:
             target, step = cur, 0.0           # ventilation neutre : pas de variation
         else:
@@ -1694,7 +1715,7 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
         diff = target - cur
         new = target if abs(diff) < step else cur + step * (1 if diff > 0 else -1)
         new = round(new + random.uniform(-0.05, 0.05), 1)
-        await db.zones.update_one({"id": z["id"]}, {"$set": {"current_temp": new, "damper_open": damper}})
+        await db.zones.update_one({"id": z["id"]}, {"$set": {"current_temp": new, "damper_open": damper, "damper_opening": opening}})
 
     # 6) Persiste l'état du gainable
     await db.system.update_one({"installation_id": iid}, {"$set": {
@@ -1781,6 +1802,12 @@ async def apply_local_control(iid: str, sys_state: dict, zones: list):
             if dm.get("setpoint"):
                 scale = float(dm.get("setpoint_scale") or 1)
                 dps[str(dm["setpoint"])] = int(round(z["setpoint"] * scale))
+            # Vanne : position proportionnelle (0–100 %) ou tout-ou-rien
+            if dm.get("damper"):
+                dscale = float(dm.get("damper_scale") or 1)
+                dps[str(dm["damper"])] = int(round(z.get("damper_opening", 0) * dscale))
+            elif dm.get("damper_switch"):
+                dps[str(dm["damper_switch"])] = bool(z.get("damper_opening", 0) > 0)
             await _send_local(ld, dps)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Contrôle local échoué (iid={iid}): {type(e).__name__}: {e}")

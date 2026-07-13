@@ -8,7 +8,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "./ui/alert-dialog";
 
-export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, onSetMaster, onValves, onDelete, canWrite = true, index }) => {
+export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename, onSetMaster, onValves, onProportional, onDelete, canWrite = true, index }) => {
   const heat = mode === "chaud";
   const accent = heat ? "#7C3AED" : "#3B82F6";
   const active = zone.active && systemOn;
@@ -113,6 +113,24 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
                 </select>
               ) : (
                 <span className="text-xs font-semibold text-zinc-700">{zone.valves || 1}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-zinc-500">Vanne modulante :</span>
+              {canWrite && onProportional ? (
+                <Switch
+                  data-testid={`zone-proportional-${zone.id}`}
+                  checked={!!zone.proportional}
+                  onCheckedChange={() => onProportional(zone.id, !zone.proportional)}
+                  className="scale-90"
+                />
+              ) : (
+                <span className="text-xs font-semibold text-zinc-700">{zone.proportional ? "Oui" : "Non"}</span>
+              )}
+              {zone.proportional && active && (
+                <span data-testid={`zone-opening-${zone.id}`} className="text-xs font-semibold" style={{ color: accent }}>
+                  · Ouverture {typeof zone.damper_opening === "number" ? zone.damper_opening : (zone.damper_open ? 100 : 0)}%
+                </span>
               )}
             </div>
           </div>

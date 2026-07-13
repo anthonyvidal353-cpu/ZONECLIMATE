@@ -114,6 +114,12 @@ export default function InstallationDashboard() {
     toast.success(`Zone supprimée : ${zone.name}`);
   };
 
+  const setZoneProportional = async (id, proportional) => {
+    const updated = await api.updateZone(iid, id, { proportional });
+    setZones((zs) => zs.map((z) => (z.id === id ? updated : z)));
+    toast.success(`${updated.name} : vanne ${proportional ? "modulante (0–100 %)" : "tout-ou-rien"}`);
+  };
+
   const setMaster = async (id) => {    const zs = await api.setMaster(iid, id);
     setZones(zs);
     toast.success(`« ${zs.find((x) => x.id === id)?.name} » est désormais le thermostat maître`);
@@ -246,7 +252,7 @@ export default function InstallationDashboard() {
           <div data-testid="zones-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {otherZones.map((z, i) => (
               <ZoneCard key={z.id} zone={z} index={i} mode={system.mode} systemOn={system.power} canWrite={canWrite}
-                onSetpoint={setZoneSetpoint} onToggle={toggleZone} onRename={renameZone} onSetMaster={setMaster} onValves={setZoneValves} onDelete={removeZone} />
+                onSetpoint={setZoneSetpoint} onToggle={toggleZone} onRename={renameZone} onSetMaster={setMaster} onValves={setZoneValves} onProportional={setZoneProportional} onDelete={removeZone} />
             ))}
           </div>
         </div>

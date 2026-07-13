@@ -40,6 +40,9 @@ const MAP_FIELDS = {
     { key: "power", label: "DP Marche/Arrêt", ph: "ex : 1" },
     { key: "setpoint", label: "DP Consigne", ph: "ex : 2" },
     { key: "setpoint_scale", label: "Échelle consigne", ph: "1, 10, 0.5…" },
+    { key: "damper", label: "DP Vanne (position 0–100 %)", ph: "ex : 3" },
+    { key: "damper_scale", label: "Échelle position vanne", ph: "1, 10…" },
+    { key: "damper_switch", label: "DP Vanne (tout-ou-rien)", ph: "ex : 3" },
   ],
 };
 
