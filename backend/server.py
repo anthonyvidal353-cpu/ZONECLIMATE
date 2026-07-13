@@ -29,7 +29,16 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-JWT_SECRET = os.environ['JWT_SECRET']
+JWT_SECRET = os.environ.get("JWT_SECRET", "").strip()
+if len(JWT_SECRET) < 16:
+    raise RuntimeError(
+        "Configuration invalide : JWT_SECRET est vide ou trop court.\n"
+        "→ Ouvrez le fichier .env à la racine du projet (à côté de docker-compose.yml) "
+        "et renseignez une valeur longue et aléatoire, par exemple :\n"
+        "   JWT_SECRET=une_longue_chaine_aleatoire_de_32_caracteres_minimum\n"
+        "Générez-en une avec : python -c \"import secrets; print(secrets.token_urlsafe(48))\"\n"
+        "Puis redémarrez : docker compose up -d --build"
+    )
 JWT_ALGORITHM = "HS256"
 
 app = FastAPI(title="ZoneClimate")
