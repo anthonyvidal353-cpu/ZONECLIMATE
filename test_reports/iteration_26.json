@@ -1,0 +1,23 @@
+{
+  "summary": "Iter26 — Tested autonomous regulation loop + local mode graceful degradation + cloud tick regression + regulation math correctness. 10/10 backend tests pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_regulation_iter26.py",
+    "/app/test_reports/pytest/iter26.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now >2100 lines — consider splitting into modules (auth, installations, regulation loop, modbus/tuya).",
+    "system.fan_speed can hold value 'haut' which is outside FAN_ORDER map — passes through directly at server.py:1838; could raise KeyError if compared with FAN_ORDER later. Recommend validating fan_speed against allowed set.",
+    "periodic_regulation() swallows all exceptions with debug-only logging; if a persistent bug appears, silent failures make production debugging hard — log at WARNING at least for repeated failures."
+  ],
+  "updated_files": ["/app/backend/tests/test_regulation_iter26.py"],
+  "success_rate": {"backend": "100%", "frontend": "n/a"},
+  "test_credentials": "admin@climazone.fr / Admin1234! (from problem statement)",
+  "seed_data_creation": "None — used existing demo installation 8dd6f7e4-9919-4c5b-8f0c-8c395a389896; restored control_mode='cloud' at end.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_regulation_iter26.py covers: tick auth, cloud regression, heating-demand math, satisfied→purge/stop, local-mode graceful (temps unchanged), autonomous loop stability over 40s, modbus scan/test/tuya-status graceful, cleanup. Demo iid left in control_mode='cloud'. Backend logs show only expected Modbus /dev/ttyUSB0 warnings (no hw) — no crashes from periodic_regulation.",
+  "rca of the issue": "n/a — no bugs found."
+}

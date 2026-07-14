@@ -933,6 +933,28 @@ async def periodic_local_status():
             logger.debug(f"Poll statut local ignoré: {e}")
 
 
+REG_INTERVAL_SEC = int(os.environ.get("REG_INTERVAL_SEC", "30"))
+
+
+async def periodic_regulation():
+    """Boucle de régulation AUTONOME (24/7) : indépendante de l'UI.
+    Régule chaque installation en mode 'local' (automate branché au gainable/thermostats)."""
+    while True:
+        await asyncio.sleep(REG_INTERVAL_SEC)
+        try:
+            insts = await db.system.find({"control_mode": "local"}, {"installation_id": 1, "_id": 0}).to_list(500)
+            for s in insts:
+                iid = s.get("installation_id")
+                if not iid:
+                    continue
+                try:
+                    await _run_regulation(iid, real=True)
+                except Exception as e:  # noqa: BLE001
+                    logger.debug(f"Régulation auto ignorée (iid={iid}): {type(e).__name__}: {e}")
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"Boucle régulation ignorée: {e}")
+
+
 # ----------------------------- Mise à jour de l'application (OTA) -----------------------------
 REPO_DIR = os.environ.get("REPO_DIR", "/repo")
 INAPP_UPDATE_ENABLED = os.environ.get("INAPP_UPDATE_ENABLED", "true").lower() in ("1", "true", "yes", "on")
@@ -1694,19 +1716,58 @@ def _fan_for_valves(v: int) -> str:
 
 @api_router.post("/installations/{iid}/simulate/tick")
 async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
-    """Algorithme de régulation ZoneClimate.
+    """Déclenche un cycle de régulation ZoneClimate.
 
-    - Les registres suivent la demande de chaque zone (hystérésis sur la deadband).
-    - La consigne envoyée au gainable est modulée proportionnellement à la demande
-      la plus forte parmi les zones qui appellent.
-    - La ventilation s'adapte à la demande max.
-    - Quand toutes les zones sont satisfaites, le gainable coupe le compresseur mais
-      lance une purge ventilation de 30 s registres ouverts avant l'arrêt complet.
+    - En mode 'local' (automate branché) : lit la température RÉELLE des thermostats
+      Tuya et pilote physiquement le gainable (Modbus) + vannes (Tuya).
+    - En mode démo/cloud : simule l'évolution des températures.
     """
     await get_installation_for(user, iid)
+    docs, sysd = await _run_regulation(iid)
+    if sysd is None:
+        raise HTTPException(404, "Système introuvable")
+    return {"zones": [Zone(**d) for d in docs], "system": System(**sysd)}
+
+
+async def _read_real_temps(iid: str, zones: list):
+    """Mode local : lit la température mesurée par chaque thermostat Tuya (DP current_temp)
+    et met à jour z['current_temp']. Dégradation gracieuse (conserve la dernière valeur)."""
+    devs = await db.devices.find(
+        {"installation_id": iid, "category": "thermostat", "tuya_id": {"$ne": None}}, {"_id": 0}).to_list(200)
+    by_zone = {d["zone_id"]: d for d in devs if d.get("zone_id")}
+    for z in zones:
+        dev = by_zone.get(z["id"])
+        if not dev:
+            continue
+        ld = await _local_device_for(dev.get("tuya_id"))
+        if not ld:
+            continue
+        dm = ld.get("dps_map") or {}
+        tkey = dm.get("current_temp")
+        if not tkey:
+            continue
+        try:
+            dps = await _read_local(ld)
+            raw = dps.get(str(tkey))
+            if raw is not None:
+                scale = float(dm.get("current_temp_scale") or 1) or 1
+                z["current_temp"] = round(float(raw) / scale, 1)
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"Lecture température thermostat ignorée (zone={z.get('id')}): {e}")
+
+
+async def _run_regulation(iid: str, real: Optional[bool] = None):
+    """Cœur de l'algorithme de régulation (endpoint + boucle autonome).
+    Retourne (docs_zones, sysd) ou ([], None) si le système est introuvable."""
     sysd = await db.system.find_one({"installation_id": iid}, {"_id": 0})
+    if not sysd:
+        return [], None
     system = System(**sysd)
+    if real is None:
+        real = system.control_mode == "local"
     zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).to_list(200)
+    if real:
+        await _read_real_temps(iid, zones)
     now = datetime.now(timezone.utc)
     heat = system.mode == "chaud"
 
@@ -1802,6 +1863,12 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
         else:
             damper, opening = False, 0
 
+        if real:
+            # Mode réel : la température vient des thermostats (déjà lue), pas de simulation
+            await db.zones.update_one({"id": z["id"]}, {"$set": {
+                "current_temp": round(z["current_temp"], 1), "damper_open": damper, "damper_opening": opening}})
+            continue
+
         cur = z["current_temp"]
         if unit_running and z["active"] and damper:
             # Plus la vanne est ouverte, plus la zone se rapproche vite de sa consigne
@@ -1840,7 +1907,7 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
                      "modbus_slave": int(sysd.get("modbus_slave") or 1)}
         asyncio.create_task(apply_local_control(iid, sys_state, docs))
 
-    return {"zones": [Zone(**d) for d in docs], "system": System(**sysd)}
+    return docs, sysd
 
 
 async def _local_device_for(tuya_id):
@@ -2043,6 +2110,7 @@ async def startup():
         logger.error(f"Sauvegarde initiale échouée: {e}")
     app.state.backup_task = asyncio.create_task(periodic_backup())
     app.state.local_status_task = asyncio.create_task(periodic_local_status())
+    app.state.regulation_task = asyncio.create_task(periodic_regulation())
 
 
 @app.on_event("shutdown")
@@ -2058,4 +2126,7 @@ async def shutdown_db_client():
     lt = getattr(app.state, "local_status_task", None)
     if lt:
         lt.cancel()
+    rt = getattr(app.state, "regulation_task", None)
+    if rt:
+        rt.cancel()
     client.close()
