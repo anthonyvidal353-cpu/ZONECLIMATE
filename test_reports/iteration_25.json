@@ -1,0 +1,20 @@
+{
+  "summary": "Iter 25 — Backend regression Modbus scan/test + NEW Tuya status endpoint. 9/9 pytest OK. Scan/test/status dégradent gracieusement (HTTP 200 + ok:false + error) sans matériel RS485/Tuya LAN. Auth requise (401/403) sur les 3 endpoints. Stabilité validée après 5 boucles (scan+test+status). Régressions login, GET /installations, GET /installations/{iid}/system OK. Scan retourne <20s (pas de hang).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_modbus_tuya_iter25.py", "/app/test_reports/pytest/iter25.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GET /gainable/tuya/status : dégradation gracieuse conforme quand aucun gainable Tuya associé (200 + ok:false + error FR).",
+    "POST /gainable/modbus/scan : capture ConnectionError et retourne {ok:false, error, port} en 200, pas de hang malgré l'absence de /dev/ttyUSB0.",
+    "POST /gainable/modbus/test : dégradation identique avec slave inclus dans la réponse.",
+    "Stabilité serveur : 15 appels consécutifs (5×scan+test+status) sans crash worker, GET /installations toujours 200 après."
+  ],
+  "updated_files": ["/app/backend/tests/test_modbus_tuya_iter25.py"],
+  "success_rate": {"backend": "100%", "frontend": "n/a"},
+  "test_credentials": "admin@climazone.fr / Admin1234!",
+  "seed_data_creation": "aucune",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Endpoints Modbus gainable (scan/test) + NEW Tuya status validés en dégradation gracieuse. Installation démo (first from GET /installations) sans gainable Tuya associé → tuya/status renvoie ok:false. Suite iter25 réutilisable pour non-régression."
+}

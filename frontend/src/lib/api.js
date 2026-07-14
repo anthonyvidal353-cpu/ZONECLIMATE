@@ -78,6 +78,8 @@ export const api = {
   getSystem: (iid) => http.get(`/installations/${iid}/system`).then((r) => r.data),
   updateSystem: (iid, data) => http.put(`/installations/${iid}/system`, data).then((r) => r.data),
   testGainableModbus: (iid) => http.post(`/installations/${iid}/gainable/modbus/test`).then((r) => r.data),
+  scanGainableModbus: (iid) => http.post(`/installations/${iid}/gainable/modbus/scan`).then((r) => r.data),
+  getGainableTuyaStatus: (iid) => http.get(`/installations/${iid}/gainable/tuya/status`).then((r) => r.data),
   masterPower: (iid, on) => http.post(`/installations/${iid}/system/master-power`, null, { params: { on } }).then((r) => r.data),
   runDiagnostic: (iid) => http.post(`/installations/${iid}/system/diagnostic`).then((r) => r.data),
   getZones: (iid) => http.get(`/installations/${iid}/zones`).then((r) => r.data),

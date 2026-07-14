@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Cpu, CircleNotch, PlugsConnected, FloppyDisk } from "@phosphor-icons/react";
+import { Cpu, CircleNotch, PlugsConnected, FloppyDisk, MagnifyingGlass } from "@phosphor-icons/react";
 import api, { formatApiErrorDetail } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -14,7 +14,26 @@ export const GainableModbusDialog = ({ open, onOpenChange, iid, system, onSaved 
   const [slave, setSlave] = useState(String(system?.modbus_slave || 1));
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState(null);
+
+  const scan = async () => {
+    setScanning(true);
+    try {
+      await api.updateSystem(iid, { modbus_port: port.trim() });
+      const res = await api.scanGainableModbus(iid);
+      if (res.ok && res.found?.length) {
+        setSlave(String(res.found[0]));
+        toast.success(`Adresse(s) détectée(s) : ${res.found.join(", ")} → ${res.found[0]}`);
+      } else if (res.ok) {
+        toast.error("Aucun appareil détecté sur le bus (vérifiez le câblage A/B/GND)");
+      } else {
+        toast.error(res.error || "Détection impossible");
+      }
+    } catch (e) {
+      toast.error(formatApiErrorDetail(e.response?.data?.detail));
+    } finally { setScanning(false); }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -78,8 +97,16 @@ export const GainableModbusDialog = ({ open, onOpenChange, iid, system, onSaved 
             </div>
             <div>
               <Label className="text-xs text-zinc-600">Adresse esclave (Slave ID)</Label>
-              <Input data-testid="modbus-slave-input" type="number" min="1" max="247" value={slave}
-                onChange={(e) => setSlave(e.target.value)} className="mt-1 bg-zinc-100 border-border/70 h-10 font-mono-num" />
+              <div className="flex gap-2 mt-1">
+                <Input data-testid="modbus-slave-input" type="number" min="1" max="247" value={slave}
+                  onChange={(e) => setSlave(e.target.value)} className="bg-zinc-100 border-border/70 h-10 font-mono-num" />
+                <Button data-testid="modbus-scan-btn" onClick={scan} disabled={scanning}
+                  variant="outline" className="rounded-lg border-border/70 font-semibold shrink-0 h-10">
+                  {scanning ? <CircleNotch size={15} className="animate-spin" /> : <MagnifyingGlass weight="bold" size={15} />}
+                  <span className="ml-1.5 hidden sm:inline">Détecter</span>
+                </Button>
+              </div>
+              <p className="text-[10px] text-zinc-400 mt-1">Par défaut 1. « Détecter » scanne le bus (1–32).</p>
             </div>
           </div>
 

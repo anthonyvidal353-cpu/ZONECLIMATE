@@ -6,6 +6,7 @@ import api from "../lib/api";
 import { AppShell } from "../components/AppShell";
 import { MasterZoneCard } from "../components/MasterZoneCard";
 import { GainableModbusDialog } from "../components/GainableModbusDialog";
+import { GainableTuyaInfo } from "../components/GainableTuyaInfo";
 import { ZoneCard } from "../components/ZoneCard";
 import { DevicesPanel } from "../components/DevicesPanel";
 import { PairingPanel } from "../components/PairingPanel";
@@ -275,6 +276,7 @@ export default function InstallationDashboard() {
               ))}
             </div>
           )}
+          {system.modbus_enabled && <GainableTuyaInfo iid={iid} />}
           {system.safety_note && (
             <div data-testid="safety-note" className="flex items-center gap-2 rounded-lg border border-offline/40 bg-offline/10 text-offline px-4 py-2.5 text-sm font-semibold">
               <Warning weight="fill" size={18} /> {system.safety_note}

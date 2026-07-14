@@ -90,6 +90,25 @@ def _read_sensors_sync(port, slave):
         c.close()
 
 
+def _scan_sync(port, start, end):
+    from pymodbus.client import ModbusSerialClient
+    c = ModbusSerialClient(port=port, baudrate=9600, parity="N", stopbits=1, bytesize=8, timeout=0.4)
+    if not c.connect():
+        raise ConnectionError(f"Port série {port} injoignable")
+    found = []
+    try:
+        for sid in range(start, end + 1):
+            try:
+                rr = c.read_holding_registers(REG_ROOM_TEMP, count=1, device_id=sid)
+                if not rr.isError():
+                    found.append(sid)
+            except Exception:  # noqa: BLE001
+                pass
+        return found
+    finally:
+        c.close()
+
+
 async def send_gainable(port, slave, state: dict):
     """Envoie l'état calculé (marche/mode/consigne/ventilation) au gainable."""
     regs = build_commands(**state)
@@ -105,3 +124,8 @@ async def read_room_temp(port, slave):
 async def read_sensors(port, slave):
     """Lit ambiance, reprise d'air et température extérieure (°C)."""
     return await asyncio.to_thread(_read_sensors_sync, port, int(slave))
+
+
+async def scan_slaves(port, start=1, end=32):
+    """Détecte les adresses esclaves Modbus qui répondent sur le bus (1..32 par défaut)."""
+    return await asyncio.to_thread(_scan_sync, port, int(start), int(end))

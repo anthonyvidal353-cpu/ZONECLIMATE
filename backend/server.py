@@ -219,6 +219,9 @@ class System(BaseModel):
     gainable_return_temp: Optional[float] = None
     gainable_outdoor_temp: Optional[float] = None
     gainable_readings_at: Optional[str] = None
+    # Infos gainable lues via Tuya (LAN) — lecture seule, à titre indicatif
+    gainable_tuya_dps: Optional[dict] = None
+    gainable_tuya_at: Optional[str] = None
     safety_note: Optional[str] = None
     fault_codes: List[FaultCode] = []
     # État de régulation du gainable (calculé par l'algorithme)
@@ -1265,6 +1268,42 @@ async def gainable_modbus_test(iid: str, user: dict = Depends(get_current_user))
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "port": port, "slave": slave}
 
 
+@api_router.post("/installations/{iid}/gainable/modbus/scan")
+async def gainable_modbus_scan(iid: str, user: dict = Depends(get_current_user)):
+    """Détecte automatiquement l'adresse esclave du gainable sur le bus (1..32)."""
+    await get_installation_for(user, iid, write=True)
+    sysd = await db.system.find_one({"installation_id": iid}, {"_id": 0})
+    if not sysd:
+        raise HTTPException(404, "Système introuvable")
+    port = sysd.get("modbus_port") or "/dev/ttyUSB0"
+    try:
+        found = await modbus_gainable.scan_slaves(port)
+        return {"ok": True, "found": found, "port": port}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "port": port}
+
+
+@api_router.get("/installations/{iid}/gainable/tuya/status")
+async def gainable_tuya_status(iid: str, user: dict = Depends(get_current_user)):
+    """Lit l'état du gainable via Tuya (LAN) — à titre informatif (Modbus reste le pilote).
+    Dégradation gracieuse si l'appareil est hors ligne ou absent du LAN."""
+    await get_installation_for(user, iid)
+    gain = await db.devices.find_one(
+        {"installation_id": iid, "category": "gainable", "tuya_id": {"$ne": None}}, {"_id": 0})
+    if not gain:
+        return {"ok": False, "error": "Aucun gainable Tuya associé à cette installation"}
+    ld = await _local_device_for(gain.get("tuya_id"))
+    if not ld:
+        return {"ok": False, "error": "Appareil local introuvable (IP/clé) — lancez un scan LAN depuis le réseau des appareils"}
+    try:
+        dps = await _read_local(ld)
+        await db.system.update_one({"installation_id": iid}, {"$set": {
+            "gainable_tuya_dps": dps, "gainable_tuya_at": now_iso()}})
+        return {"ok": True, "dps": dps, "dps_map": ld.get("dps_map") or {}, "name": gain.get("name")}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
 @api_router.post("/installations/{iid}/system/master-power")
 async def master_power(iid: str, on: bool, user: dict = Depends(get_current_user)):
     await get_installation_for(user, iid, write=True)
@@ -1821,6 +1860,16 @@ async def _send_local(dev_local, dps: dict):
                              dev_local.get("version", "3.3"), dps)
 
 
+async def _read_local(dev_local) -> dict:
+    """Lit l'état brut (dps) d'un appareil Tuya sur le LAN."""
+    data = await tuya_local.read_status(
+        dev_local["tuya_id"], dev_local["ip"],
+        tuya.decrypt_secret(dev_local["local_key_enc"]), dev_local.get("version", "3.3"))
+    if isinstance(data, dict):
+        return data.get("dps") or {}
+    return {}
+
+
 async def apply_local_control(iid: str, sys_state: dict, zones: list):
     """Traduit l'état calculé par l'algorithme en commandes physiques.
     Gainable → Modbus RTU (si activé). Thermostats de zone + vannes → Tuya (LAN)."""
@@ -1849,7 +1898,15 @@ async def apply_local_control(iid: str, sys_state: dict, zones: list):
         gain = next((x for x in devs if x.get("category") == "gainable"), None)
         if gain:
             ld = await _local_device_for(gain.get("tuya_id"))
-            if ld:
+            if ld and sys_state.get("modbus_enabled"):
+                # Modbus prioritaire → Tuya en LECTURE seule (infos gainable)
+                try:
+                    dps = await _read_local(ld)
+                    await db.system.update_one({"installation_id": iid}, {"$set": {
+                        "gainable_tuya_dps": dps, "gainable_tuya_at": now_iso()}})
+                except Exception as e:  # noqa: BLE001
+                    logger.debug(f"Lecture Tuya gainable ignorée (iid={iid}): {e}")
+            elif ld:
                 dm = ld.get("dps_map") or {}
                 dps = {}
                 if dm.get("power"):
