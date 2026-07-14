@@ -120,6 +120,35 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+# ----------------------------- Journal de régulation (7 j, réservé modo/superadmin) -----------------------------
+REG_LOG_RETENTION_DAYS = 7
+SNAPSHOT_INTERVAL = timedelta(minutes=5)
+_last_snapshot: dict = {}   # {installation_id: datetime} — throttle des instantanés
+
+
+async def log_reg_event(iid: str, etype: str, message: str, level: str = "info", meta: dict = None):
+    """Enregistre un événement de régulation, rattaché au compte propriétaire de l'installation."""
+    try:
+        inst = await db.installations.find_one({"id": iid}, {"_id": 0, "name": 1, "owner_id": 1})
+        owner_email = owner_name = None
+        if inst and inst.get("owner_id"):
+            try:
+                ou = await db.users.find_one({"_id": ObjectId(inst["owner_id"])}, {"email": 1, "name": 1})
+                if ou:
+                    owner_email, owner_name = ou.get("email"), ou.get("name")
+            except Exception:  # noqa: BLE001
+                pass
+        now = datetime.now(timezone.utc)
+        await db.reg_logs.insert_one({
+            "id": str(uuid.uuid4()), "installation_id": iid,
+            "installation_name": (inst or {}).get("name"),
+            "owner_email": owner_email, "owner_name": owner_name,
+            "type": etype, "level": level, "message": message, "meta": meta or {},
+            "ts": now.isoformat(), "created_at": now})
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"log_reg_event ignoré (iid={iid}): {e}")
+
+
 def gen_ref() -> str:
     # Référence publique associée au QR code (masque le fournisseur)
     return "CZ-" + uuid.uuid4().hex[:8].upper()
@@ -902,9 +931,22 @@ async def _refresh_one_status(d: dict) -> bool:
         online = True
     except Exception:  # noqa: BLE001
         online = False
+    prev_online = d.get("online")
     await db.local_devices.update_one({"tuya_id": d["tuya_id"]},
                                       {"$set": {"online": online, "last_status_at": now_iso(),
                                                 **({"last_seen_at": now_iso()} if online else {})}})
+    if prev_online is not None and bool(prev_online) != bool(online):
+        linked = await db.devices.find({"tuya_id": d["tuya_id"], "installation_id": {"$ne": None}},
+                                       {"_id": 0, "installation_id": 1, "name": 1}).to_list(50)
+        seen = set()
+        for dev in linked:
+            iid = dev.get("installation_id")
+            if not iid or iid in seen:
+                continue
+            seen.add(iid)
+            await log_reg_event(iid, "device_status",
+                                f"Appareil « {d.get('name') or dev.get('name')} » {'en ligne' if online else 'hors ligne'}",
+                                "info" if online else "warning", {"tuya_id": d["tuya_id"]})
     return online
 
 
@@ -1261,8 +1303,18 @@ async def update_system(iid: str, payload: SystemUpdate, user: dict = Depends(ge
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if payload.mode is not None and payload.mode not in ("chaud", "froid"):
         raise HTTPException(400, "Mode invalide")
+    prev = await db.system.find_one({"installation_id": iid}, {"_id": 0}) or {}
     updates["updated_at"] = now_iso()
     await db.system.update_one({"installation_id": iid}, {"$set": updates})
+    actor = user.get("email")
+    if payload.mode is not None and payload.mode != prev.get("mode"):
+        await log_reg_event(iid, "mode", f"Mode changé : {prev.get('mode')} → {payload.mode} (par {actor})", "info", {"actor": actor})
+    if payload.power is not None and bool(payload.power) != bool(prev.get("power")):
+        await log_reg_event(iid, "power", f"Système {'allumé' if payload.power else 'éteint'} (par {actor})", "info", {"actor": actor})
+    if payload.master_setpoint is not None and payload.master_setpoint != prev.get("master_setpoint"):
+        await log_reg_event(iid, "setpoint", f"Consigne maître : {prev.get('master_setpoint')}° → {payload.master_setpoint}° (par {actor})", "info", {"actor": actor})
+    if payload.control_mode is not None and payload.control_mode != prev.get("control_mode"):
+        await log_reg_event(iid, "control_mode", f"Pilotage : {prev.get('control_mode')} → {payload.control_mode} (par {actor})", "info", {"actor": actor})
     doc = await db.system.find_one({"installation_id": iid}, {"_id": 0})
     return System(**doc)
 
@@ -1331,6 +1383,7 @@ async def master_power(iid: str, on: bool, user: dict = Depends(get_current_user
     await get_installation_for(user, iid, write=True)
     await db.system.update_one({"installation_id": iid}, {"$set": {"power": on, "updated_at": now_iso()}})
     await db.zones.update_many({"installation_id": iid}, {"$set": {"active": on}})
+    await log_reg_event(iid, "power", f"Système {'allumé' if on else 'éteint'} (par {user.get('email')})", "info", {"actor": user.get("email")})
     sysd = await db.system.find_one({"installation_id": iid}, {"_id": 0})
     zs = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
     return {"system": System(**sysd).model_dump(), "zones": [Zone(**z).model_dump() for z in zs]}
@@ -1349,6 +1402,11 @@ async def diagnostic(iid: str, user: dict = Depends(get_current_user)):
     n = random.choices([0, 1, 2], weights=[0.45, 0.4, 0.15])[0]
     faults = random.sample(catalog, n)
     await db.system.update_one({"installation_id": iid}, {"$set": {"fault_codes": faults, "updated_at": now_iso()}})
+    if faults:
+        lbls = ", ".join(f"{f['code']} ({f['label']})" for f in faults)
+        crit = any(f["severity"] == "critical" for f in faults)
+        await log_reg_event(iid, "fault", f"Codes défauts détectés : {lbls}", "critical" if crit else "warning",
+                            {"faults": faults})
     doc = await db.system.find_one({"installation_id": iid}, {"_id": 0})
     return System(**doc)
 
@@ -1756,6 +1814,39 @@ async def _read_real_temps(iid: str, zones: list):
             logger.debug(f"Lecture température thermostat ignorée (zone={z.get('id')}): {e}")
 
 
+async def _log_regulation_events(iid, mode, prev_running, prev_purging, prev_safety,
+                                 new_running, purging, unit_setpoint, fan_level, demand,
+                                 safety_note, zones):
+    """Journalise les transitions notables + un instantané toutes les 5 min."""
+    if new_running and not prev_running:
+        await log_reg_event(iid, "gainable_start",
+                            f"Gainable démarré — mode {mode}, consigne {unit_setpoint:.1f}°, ventilation {fan_level}",
+                            "info", {"mode": mode, "setpoint": unit_setpoint, "fan": fan_level})
+    if (not new_running) and prev_running:
+        await log_reg_event(iid, "gainable_purge",
+                            "Zones satisfaites — purge ventilation avant arrêt du compresseur", "info")
+    if prev_purging and (not purging) and (not new_running):
+        await log_reg_event(iid, "gainable_stop", "Gainable arrêté (toutes les zones satisfaites)", "info")
+    if safety_note and safety_note != prev_safety:
+        await log_reg_event(iid, "safety", safety_note, "warning")
+
+    now = datetime.now(timezone.utc)
+    last = _last_snapshot.get(iid)
+    if not last or (now - last) >= SNAPSHOT_INTERVAL:
+        _last_snapshot[iid] = now
+        active = [z for z in zones if z.get("active")]
+        summary = " · ".join(f"{z.get('name')} {z.get('current_temp'):.1f}°/{z.get('setpoint'):.0f}°" for z in active[:10])
+        state = "en marche" if new_running else ("purge" if purging else "arrêt")
+        await log_reg_event(iid, "snapshot",
+                            f"État : gainable {state}, demande max {demand:.1f}°" + (f" — {summary}" if summary else ""),
+                            "info",
+                            {"unit_running": new_running, "purging": purging, "demand": round(demand, 1),
+                             "fan": fan_level, "mode": mode,
+                             "zones": [{"name": z.get("name"), "temp": z.get("current_temp"),
+                                        "setpoint": z.get("setpoint"), "active": z.get("active"),
+                                        "opening": z.get("damper_opening", 0)} for z in zones]})
+
+
 async def _run_regulation(iid: str, real: Optional[bool] = None):
     """Cœur de l'algorithme de régulation (endpoint + boucle autonome).
     Retourne (docs_zones, sysd) ou ([], None) si le système est introuvable."""
@@ -1765,6 +1856,7 @@ async def _run_regulation(iid: str, real: Optional[bool] = None):
     system = System(**sysd)
     if real is None:
         real = system.control_mode == "local"
+    prev_running, prev_purging, prev_safety = system.unit_running, system.purging, system.safety_note
     zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).to_list(200)
     if real:
         await _read_real_temps(iid, zones)
@@ -1896,6 +1988,11 @@ async def _run_regulation(iid: str, real: Optional[bool] = None):
 
     docs = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
     sysd = await db.system.find_one({"installation_id": iid}, {"_id": 0})
+
+    # 6b) Journal de régulation (transitions + instantané périodique)
+    await _log_regulation_events(iid, system.mode, prev_running, prev_purging, prev_safety,
+                                 unit_running, purging, unit_setpoint, fan_level, max_demand,
+                                 safety_note, docs)
 
     # 7) Pilotage local RÉEL (LAN) — uniquement en mode "local". Non bloquant, tolérant aux erreurs.
     if sysd.get("control_mode") == "local":
@@ -2075,6 +2172,38 @@ async def delete_slot(iid: str, slot_id: str, user: dict = Depends(get_current_u
     return {"ok": True}
 
 
+@api_router.get("/admin/reg-logs/accounts")
+async def reg_log_accounts(user: dict = Depends(require_roles("super_admin", "moderator"))):
+    """Comptes utilisateurs (propriétaires) présents dans le journal, pour le filtre."""
+    since = datetime.now(timezone.utc) - timedelta(days=REG_LOG_RETENTION_DAYS)
+    pipeline = [
+        {"$match": {"created_at": {"$gte": since}, "owner_email": {"$ne": None}}},
+        {"$group": {"_id": "$owner_email", "name": {"$last": "$owner_name"}, "count": {"$sum": 1},
+                    "last_at": {"$max": "$ts"}}},
+        {"$sort": {"last_at": -1}},
+    ]
+    rows = await db.reg_logs.aggregate(pipeline).to_list(500)
+    return [{"email": r["_id"], "name": r.get("name"), "count": r.get("count"), "last_at": r.get("last_at")} for r in rows]
+
+
+@api_router.get("/admin/reg-logs")
+async def reg_logs(owner_email: Optional[str] = None, installation_id: Optional[str] = None,
+                   etype: Optional[str] = None, limit: int = 300,
+                   user: dict = Depends(require_roles("super_admin", "moderator"))):
+    """Journal de régulation des 7 derniers jours (réservé modérateur + super admin)."""
+    since = datetime.now(timezone.utc) - timedelta(days=REG_LOG_RETENTION_DAYS)
+    q = {"created_at": {"$gte": since}}
+    if owner_email:
+        q["owner_email"] = owner_email
+    if installation_id:
+        q["installation_id"] = installation_id
+    if etype:
+        q["type"] = etype
+    limit = max(1, min(limit, 1000))
+    rows = await db.reg_logs.find(q, {"_id": 0, "created_at": 0}).sort("ts", -1).to_list(limit)
+    return rows
+
+
 @api_router.get("/")
 async def root():
     return {"message": "ZoneClimate API"}
@@ -2104,6 +2233,12 @@ async def startup():
         except Exception as e:  # noqa: BLE001
             logger.error(f"Échec de la restauration depuis backup.json: {e}")
     await seed_all()
+    try:
+        await db.reg_logs.create_index("created_at", expireAfterSeconds=REG_LOG_RETENTION_DAYS * 86400)
+        await db.reg_logs.create_index([("owner_email", 1), ("created_at", -1)])
+        await db.reg_logs.create_index([("installation_id", 1), ("created_at", -1)])
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Index journal de régulation: {e}")
     try:
         await write_backup_file()
     except Exception as e:  # noqa: BLE001

@@ -1,0 +1,23 @@
+{
+  "summary": "Comprehensive backend testing of 'Journal de régulation' feature: RBAC, event logging via tick + manual controls, filtering, sorting, and regression. 24/24 tests passed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_reg_logs_iter27.py",
+    "/app/test_reports/pytest/iter27_reglogs.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is >2200 lines - split into routers/services modules (users, installations, regulation, admin, etc.) for maintainability.",
+    "POST /system/master-power uses `on: bool` as query parameter which is unusual and error-prone for clients (e.g. body vs query confusion); consider Pydantic body model for consistency with PUT /system.",
+    "reg-logs endpoint uses limit cap 1000 but returned rows use created_at exclusion + ts sort; index on ts (or (owner_email, ts)) would better match query pattern than (owner_email, created_at)."
+  ],
+  "updated_files": ["/app/backend/tests/test_reg_logs_iter27.py"],
+  "success_rate": {"backend": "100%", "frontend": "N/A"},
+  "test_credentials": "admin@climazone.fr/Admin1234!, moderateur@climazone.fr/Demo1234!, client@demo.fr/Demo1234!",
+  "seed_data_creation": "None. Used existing demo installation 8dd6f7e4-9919-4c5b-8f0c-8c395a389896 owned by client@demo.fr. Restored control_mode=cloud and power/setpoint after tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "reg-logs journal fully verified: RBAC (super_admin+moderator 200, client 403, no-token 401/403); events (snapshot from tick, mode, setpoint, power via master-power, control_mode, plus diagnostic fault when triggered); filters (owner_email, etype, installation_id); ts desc sorting; limit respected and capped at 1000; accounts aggregation returns client@demo.fr with count>0. Valid modes are 'chaud'/'froid'. master-power expects `on` as query param.",
+  "rca of the issue": "N/A - all pass."
+}
