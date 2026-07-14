@@ -44,6 +44,11 @@ Voir /app/memory/test_credentials.md. Admin : admin@climazone.fr / Admin1234! (t
 - Tout VALIDÉ testing_agent iteration_22 (100% backend + frontend).
 - ✅ [2026-07] Détection auto de l'adresse esclave Modbus ("Détecter") : POST /gainable/modbus/scan (balaie 1..32, dégradation gracieuse) + bouton UI dans GainableModbusDialog. VALIDÉ testing_agent iteration_25 (100% backend).
 - ✅ [2026-07] Gainable relié à Tuya par l'utilisateur → choix user (1/c) : MODBUS = pilote principal, TUYA = INFO en lecture seule. apply_local_control : si modbus_enabled, la voie Tuya du gainable devient LECTURE seule (stocke gainable_tuya_dps/at, plus d'écriture Tuya vers le gainable). Nouveau GET /installations/{iid}/gainable/tuya/status (lit l'état DPS du gainable via LAN, dégradation gracieuse). UI : panneau "Infos gainable (Tuya) — lecture seule" (GainableTuyaInfo.jsx) sur l'onglet Zones, bouton "Lire" (interprète power/mode/consigne/ventilation via dps_map + DPS bruts). VALIDÉ testing_agent iteration_25 (100% backend). NON testé sur matériel réel (à valider sur le LAN de l'utilisateur sous Docker Windows).
+- ✅ [2026-07] RÉGULATION AUTONOME + TEMPÉRATURE RÉELLE (pour l'automate branché A-B-GND + thermostats) — 3 correctifs :
+  (A) Boucle backend AUTONOME `periodic_regulation()` (REG_INTERVAL_SEC=30, enregistrée au startup) : régule 24/7 chaque installation en control_mode='local', INDÉPENDAMMENT de tout navigateur ouvert (avant : le tick n'était déclenché que par le Dashboard/Mode écran côté frontend → régulation stoppée si aucun écran ouvert).
+  (B) Lecture de la TEMPÉRATURE RÉELLE des thermostats Tuya en mode local : `_run_regulation(iid, real)` appelle `_read_real_temps` (lit le DP current_temp de chaque thermostat via LAN, /échelle) et injecte la vraie temp AVANT le calcul de demande ; en mode local la simulation d'évolution (étape 5) est désactivée. Mode démo/cloud : simulation conservée.
+  (C) Mapping DPS thermostat : ajout des champs `current_temp` + `current_temp_scale` (LocalManager.jsx, éditeur Diagnostic DPS) pour identifier le DP de température mesurée sur le matériel.
+  simulate_tick refactoré en endpoint fin délégant à `_run_regulation`. Dégradation gracieuse totale sans matériel. VALIDÉ testing_agent iteration_26 (100% backend, 10/10). NON testé sur matériel réel.
 
 ## Backlog priorisé
 ### P1
