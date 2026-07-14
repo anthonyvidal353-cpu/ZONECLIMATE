@@ -42,6 +42,8 @@ Voir /app/memory/test_credentials.md. Admin : admin@climazone.fr / Admin1234! (t
 - ✅ [2026-06] Sécurité reprise d'air (Modbus) : gainable coupé si reprise ≥ 35°C en chaud (surchauffe) ou ≤ 8°C en froid (anti-gel) — System.safety_note + bandeau rouge dashboard. Actif seulement si modbus_enabled + reprise mesurée. Testé curl (38°C chaud→coupé) + UI + non-régression.
 - ℹ️ [2026-06] Décision user : pour l'instant, gainable piloté UNIQUEMENT en filaire Modbus (Pi), pas via Tuya. Déjà supporté nativement (pilotage Tuya du gainable ignoré si aucun appareil Tuya gainable). Thermostats Tuya (zones/vannes) ajoutés plus tard.
 - Tout VALIDÉ testing_agent iteration_22 (100% backend + frontend).
+- ✅ [2026-07] Détection auto de l'adresse esclave Modbus ("Détecter") : POST /gainable/modbus/scan (balaie 1..32, dégradation gracieuse) + bouton UI dans GainableModbusDialog. VALIDÉ testing_agent iteration_25 (100% backend).
+- ✅ [2026-07] Gainable relié à Tuya par l'utilisateur → choix user (1/c) : MODBUS = pilote principal, TUYA = INFO en lecture seule. apply_local_control : si modbus_enabled, la voie Tuya du gainable devient LECTURE seule (stocke gainable_tuya_dps/at, plus d'écriture Tuya vers le gainable). Nouveau GET /installations/{iid}/gainable/tuya/status (lit l'état DPS du gainable via LAN, dégradation gracieuse). UI : panneau "Infos gainable (Tuya) — lecture seule" (GainableTuyaInfo.jsx) sur l'onglet Zones, bouton "Lire" (interprète power/mode/consigne/ventilation via dps_map + DPS bruts). VALIDÉ testing_agent iteration_25 (100% backend). NON testé sur matériel réel (à valider sur le LAN de l'utilisateur sous Docker Windows).
 
 ## Backlog priorisé
 ### P1
