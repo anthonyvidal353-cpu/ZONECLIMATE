@@ -10,6 +10,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/repo
+    # Passage du convertisseur USB-RS485 (gainable A-B-GND) au conteneur.
+    # Le script install-pi.sh détecte le vrai port et l'écrit dans RS485_DEVICE (.env).
+    devices:
+      - "${RS485_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0"
+    group_add:
+      - dialout
     environment:
       - MONGO_URL=mongodb://127.0.0.1:27017
       - DB_NAME=zoneclimate
