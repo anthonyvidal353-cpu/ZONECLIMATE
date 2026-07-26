@@ -97,7 +97,7 @@ fi
 
 # 5) Démarrage de l'application ---------------------------------------------
 say "Construction et démarrage des conteneurs (Docker)…"
-sudo docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d --build
+sudo docker compose -f docker-compose.pi.yml up -d --build
 
 echo
 ok "============================================================"

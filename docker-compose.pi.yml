@@ -1,17 +1,34 @@
-# Surcharge pour Raspberry Pi / Linux : réseau HOST pour le pilotage local complet
-# (scan UDP + connexions directes aux appareils Tuya sur le LAN).
+# ============================================================================
+# ClimaZone — Fichier Docker COMPLET pour l'automate (Raspberry Pi / Linux)
+# ----------------------------------------------------------------------------
+# Fichier AUTONOME (à utiliser SEUL, pas en surcharge du docker-compose.yml).
+# Réseau "host" : indispensable pour le pilotage local Tuya (scan UDP + accès
+# direct aux appareils sur le LAN) et pour le point d'accès Wi-Fi.
 #
 # Lancement sur le Pi :
-#   docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d --build
-#
+#   sudo docker compose -f docker-compose.pi.yml up -d --build
+# ============================================================================
+name: zoneclimate
+
 services:
+  mongo:
+    image: mongo:7
+    container_name: zoneclimate-mongo
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - mongo_data:/data/db
+
   backend:
+    build: ./backend
+    container_name: zoneclimate-backend
+    restart: unless-stopped
     network_mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/repo
-    # Passage du convertisseur USB-RS485 (gainable A-B-GND) au conteneur.
-    # Le script install-pi.sh détecte le vrai port et l'écrit dans RS485_DEVICE (.env).
+    # Convertisseur USB-RS485 (gainable A-B-GND). install-pi.sh détecte le port
+    # réel et l'écrit dans RS485_DEVICE (.env).
     devices:
       - "${RS485_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0"
     group_add:
@@ -27,6 +44,19 @@ services:
       - FRONTEND_URL=http://localhost:3000
       - INAPP_UPDATE_ENABLED=${INAPP_UPDATE_ENABLED:-true}
       - REPO_DIR=/repo
+    depends_on:
+      - mongo
 
-  mongo:
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        REACT_APP_BACKEND_URL: http://localhost:8001
+    container_name: zoneclimate-frontend
+    restart: unless-stopped
     network_mode: host
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:

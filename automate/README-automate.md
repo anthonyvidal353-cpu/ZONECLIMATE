@@ -114,13 +114,13 @@ pour l'appairage initial.
 
 ## 🔄 Mettre à jour l'automate plus tard
 ```bash
-cd ~/zoneclimate && git pull && sudo docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d --build
+cd ~/zoneclimate && git pull && sudo docker compose -f docker-compose.pi.yml up -d --build
 ```
 
 ## 🧯 Dépannage rapide
 - **Le gainable ne répond pas** : convertisseur branché AVANT le démarrage ?
   Vérifiez le port : `ls /dev/ttyUSB*` (ou `/dev/ttyACM*`). Relancez `install-pi.sh`
   pour re-détecter, ou éditez `RS485_DEVICE` dans `~/zoneclimate/.env`.
-- **L'app ne s'ouvre pas** : `sudo docker compose -f docker-compose.yml -f docker-compose.pi.yml ps`
+- **L'app ne s'ouvre pas** : `sudo docker compose -f docker-compose.pi.yml ps`
   (les 3 services doivent être « running »).
 - **Voir les logs** : `sudo docker logs zoneclimate-backend --tail 50`
