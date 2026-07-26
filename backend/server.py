@@ -1006,7 +1006,8 @@ UPDATER_IMAGE = os.environ.get("UPDATER_IMAGE", "docker:27-cli")
 
 def _git(*args):
     import subprocess
-    return subprocess.run(["git", "-C", REPO_DIR, *args], capture_output=True, text=True, timeout=30)
+    return subprocess.run(["git", "-c", "safe.directory=*", "-C", REPO_DIR, *args],
+                          capture_output=True, text=True, timeout=30)
 
 
 def _read_version():
@@ -1046,15 +1047,18 @@ async def apply_update(user: dict = Depends(require_roles("super_admin"))):
     try:
         import docker
         client = docker.from_env()
-        cmd = ("apk add --no-cache git >/dev/null 2>&1; "
+        cmd = ("apk add --no-cache git docker-cli-compose >/dev/null 2>&1; "
                "git config --global --add safe.directory /repo; "
-               "cd /repo; git pull; docker compose up -d --build")
+               "cd /repo; git pull; "
+               "docker compose -f docker-compose.pi.yml pull; "
+               "docker compose -f docker-compose.pi.yml up -d")
         client.containers.run(
             UPDATER_IMAGE, ["sh", "-c", cmd], detach=True, remove=True,
             volumes={"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
                      REPO_DIR: {"bind": "/repo", "mode": "rw"}},
             working_dir="/repo")
-        return {"ok": True, "message": "Mise à jour lancée. L'application va redémarrer dans une minute."}
+        return {"ok": True, "message": "Mise à jour lancée : téléchargement de la nouvelle version, "
+                                       "l'application va redémarrer dans une minute (aucune compilation)."}
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"Impossible de lancer la mise à jour ({type(e).__name__}). "
                                  "Le socket Docker et le dépôt doivent être montés (configuration Raspberry).")
