@@ -10,7 +10,7 @@ ENV GENERATE_SOURCEMAP=false
 ENV NODE_OPTIONS=--max-old-space-size=2048
 
 COPY package.json ./
-RUN yarn install
+RUN yarn install --network-timeout 600000
 
 COPY . .
 RUN yarn build
