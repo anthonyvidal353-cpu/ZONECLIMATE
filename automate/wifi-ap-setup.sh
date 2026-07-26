@@ -32,6 +32,13 @@ fi
 
 echo "Interfaces Wi-Fi détectées :"
 nmcli -t -f DEVICE,TYPE device | grep ':wifi' | cut -d: -f1 | sed 's/^/  - /'
+echo
+echo "Connexions Wi-Fi actives (qui porte internet ?) :"
+nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device | grep ':wifi:' | \
+  awk -F: '{printf "  - %s : %s (%s)\n", $1, $4, $3}'
+echo
+echo "→ Conseil : mettez le Wi-Fi de la MAISON (internet) sur la CLÉ USB,"
+echo "  et gardez l'antenne INTERNE (wlan0) pour le point d'accès."
 
 read -rp "Interface pour le POINT D'ACCÈS « ZONING VALSON » [${AP_IFACE_DEFAULT}] : " AP_IFACE
 AP_IFACE="${AP_IFACE:-$AP_IFACE_DEFAULT}"

@@ -62,7 +62,8 @@ Connectez-vous avec le compte administrateur défini pendant l'installation.
 ---
 
 ## Étape 1 bis — Écran tactile (mode borne, optionnel)
-Une fois l'app en marche, transformez l'écran en borne plein écran :
+> Non nécessaire au fonctionnement : l'automate régule tout seul en tâche de fond.
+> Utile seulement si vous ajoutez un écran tactile plus tard.
 
 ```bash
 sudo bash ~/zoneclimate/automate/kiosk-setup.sh "http://localhost:3000/ecran/<ID_INSTALLATION>"
@@ -74,18 +75,40 @@ Détails et branchements écran : voir **README-ecran.md**.
 
 ---
 
-## Étape 2 — Point d'accès Wi-Fi « ZONING VALSON » (plus tard)
+## Étape 2 — Point d'accès Wi-Fi « ZONING VALSON »
 
-> Nécessite une **clé USB Wi-Fi** (2ᵉ antenne). Le Pi diffuse alors le réseau
-> « ZONING VALSON » (pour les appareils Tuya) tout en gardant l'internet de la
-> maison sur l'autre antenne.
+> Vous avez la **clé USB Wi-Fi** : on active donc le double Wi-Fi.
+> Principe : l'antenne **interne (wlan0)** diffuse « ZONING VALSON » pour les
+> appareils Tuya ; la **clé USB (wlan1)** garde l'internet de la maison.
 
+### a) Brancher la clé USB Wi-Fi
+Branchez-la, puis vérifiez qu'elle apparaît :
+```bash
+nmcli device | grep wifi
+```
+Vous devez voir **deux** interfaces (ex. `wlan0` interne + `wlan1` clé USB).
+
+### b) Mettre l'internet de la maison sur la CLÉ USB (wlan1)
+```bash
+sudo nmcli device wifi connect "NOM_DE_VOTRE_WIFI_MAISON" password "MOT_DE_PASSE_MAISON" ifname wlan1
+```
+(Vérifiez : `ping -c2 8.8.8.8` doit répondre.)
+
+### c) Créer le point d'accès « ZONING VALSON » sur l'antenne interne (wlan0)
 ```bash
 sudo bash ~/zoneclimate/automate/wifi-ap-setup.sh
 ```
+Le script affiche les interfaces + qui porte l'internet, puis vous demande
+l'interface du point d'accès (**wlan0**) et un mot de passe. Il crée le réseau
+avec DHCP + partage internet automatiques.
 
-Le script demande l'interface et un mot de passe, puis crée le réseau
-« ZONING VALSON » avec DHCP + partage internet automatiques.
+### d) Appairer les appareils Tuya
+Lors de l'appairage dans **SmartLife**, connectez vos appareils au réseau
+**« ZONING VALSON »**. Ils resteront isolés sur l'automate tout en ayant internet
+pour l'appairage initial.
+
+> Si l'AP ne démarre pas sur `wlan0` (rare), relancez le script en choisissant
+> `wlan1` pour l'AP et mettez l'internet maison sur `wlan0`.
 
 ---
 
