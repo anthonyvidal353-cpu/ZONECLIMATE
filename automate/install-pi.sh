@@ -100,9 +100,13 @@ say "Téléchargement et démarrage des conteneurs (aucune compilation)…"
 sudo docker compose -f docker-compose.pi.yml up -d
 
 echo
+PI_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 ok "============================================================"
 ok " ClimaZone est installé et démarré sur l'automate."
-ok " Ouvrez le navigateur du Pi sur :  http://localhost:3000"
+ok " Sur le Pi              :  http://localhost"
+if [ -n "${PI_IP}" ]; then
+  ok " Depuis un téléphone/PC :  http://${PI_IP}"
+fi
 ok " Connectez-vous avec le compte administrateur défini plus haut."
 ok "============================================================"
 echo

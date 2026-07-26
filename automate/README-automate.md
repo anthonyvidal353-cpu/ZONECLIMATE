@@ -57,12 +57,14 @@ Le script :
 5. construit et démarre l'application.
 
 ### 3. Ouvrir l'application
-Sur le navigateur du Pi : **http://localhost:3000**
+- Sur le Pi (s'il a un écran) : **http://localhost**
+- Depuis un **téléphone / PC / tablette** du même réseau : **http://<IP_DU_PI>**
+  *(l'IP est affichée à la fin de l'installation, ou avec la commande `hostname -I`.)*
+
 Connectez-vous avec le compte administrateur défini pendant l'installation.
 
-> Depuis un téléphone/tablette du même réseau : utilisez `http://<IP_DU_PI>:3000`
-> (l'IP du Pi s'obtient avec `hostname -I`). Pour un accès fluide depuis d'autres
-> appareils, demandez-moi la variante « accès réseau ».
+> 🖥️/📱 **Vous choisissez** : l'automate marche **sans écran** (piloté au téléphone)
+> **ET** vous pouvez **brancher un écran à tout moment** — c'est la même adresse.
 
 ### 4. Brancher et tester le gainable (RS485)
 - Câblage : **A → A**, **B → B**, **GND → GND** entre le convertisseur et le gainable.
@@ -82,7 +84,7 @@ Connectez-vous avec le compte administrateur défini pendant l'installation.
 > Utile seulement si vous ajoutez un écran tactile plus tard.
 
 ```bash
-sudo bash ~/zoneclimate/automate/kiosk-setup.sh "http://localhost:3000/ecran/<ID_INSTALLATION>"
+sudo bash ~/zoneclimate/automate/kiosk-setup.sh "http://localhost/ecran/<ID_INSTALLATION>"
 sudo reboot
 ```
 

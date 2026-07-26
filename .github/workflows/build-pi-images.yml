@@ -52,5 +52,5 @@ jobs:
           platforms: linux/arm64
           push: true
           build-args: |
-            REACT_APP_BACKEND_URL=http://localhost:8001
+            REACT_APP_BACKEND_URL=
           tags: ghcr.io/${{ steps.ns.outputs.owner }}/zoneclimate-frontend:latest
