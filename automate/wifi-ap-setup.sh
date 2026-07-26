@@ -69,9 +69,14 @@ nmcli connection modify "${CON_NAME}" \
   802-11-wireless.mode ap \
   802-11-wireless.band bg \
   ipv4.method shared \
+  connection.autoconnect yes \
+  connection.autoconnect-priority 10 \
   wifi-sec.key-mgmt wpa-psk \
   wifi-sec.psk "${AP_PASS}"
 nmcli connection up "${CON_NAME}"
+
+# NB : le mode « shared » fournit un DHCP + DNS LOCAUX même SANS Internet.
+# Le zoning reste donc pilotable box éteinte, sur http://10.42.0.1
 
 echo
 echo "✅ Réseau « ${AP_SSID} » actif sur ${AP_IFACE}."

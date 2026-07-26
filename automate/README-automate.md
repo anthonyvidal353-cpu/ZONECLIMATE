@@ -2,8 +2,8 @@
 
 Ce guide met en service l'automate qui régule votre climatisation gainable.
 Deux étapes : **(1)** installer et tester l'app sur le Wi-Fi de la maison,
-**(2)** plus tard, activer le point d'accès Wi-Fi « ZONING VALSON » pour isoler
-les appareils Tuya (nécessite une clé USB Wi-Fi).
+**(2)** plus tard, activer le point d'accès Wi-Fi « ZONECLIMATE » pour piloter le
+zoning **même sans Internet** (accès local via la clé USB Wi-Fi).
 
 ---
 
@@ -97,9 +97,9 @@ Détails et branchements écran : voir **README-ecran.md**.
 
 > L'automate diffuse son propre Wi-Fi **« ZONECLIMATE »** (via la clé USB).
 > En s'y connectant, le téléphone **ouvre automatiquement la page de connexion**.
-> L'internet de la maison reste sur l'antenne interne et est **partagé**, pour que
-> les appareils Tuya connectés à « ZONECLIMATE » puissent s'appairer.
-> Un seul réseau pour tout : vous + les appareils Tuya.
+> ✅ **Fonctionne SANS Internet** : le zoning reste 100 % pilotable même box éteinte.
+> Si la box est présente, son internet est **partagé** sur « ZONECLIMATE » pour que
+> les appareils Tuya puissent s'appairer. Un seul réseau pour tout : vous + le Tuya.
 
 ### a) Brancher la clé USB Wi-Fi
 ```bash
@@ -107,11 +107,10 @@ nmcli device | grep wifi
 ```
 Vous devez voir **deux** interfaces (interne + clé USB).
 
-### b) Vérifier que l'internet maison est bien actif
-Le Wi-Fi de la maison doit rester connecté (sur l'antenne interne). Vérifiez :
-```bash
-ping -c2 8.8.8.8
-```
+### b) (Optionnel) internet maison
+- Pour un usage **100 % local sans internet** : rien à faire, passez à l'étape c).
+- Si vous voulez que les appareils Tuya s'appairent au cloud pendant la mise en
+  service, laissez le Wi-Fi maison connecté (antenne interne) : `ping -c2 8.8.8.8`.
 
 ### c) Créer le réseau « ZONECLIMATE »
 ```bash
@@ -119,12 +118,14 @@ sudo bash ~/zoneclimate/automate/wifi-ap-setup.sh
 ```
 Le script détecte tout seul l'antenne à utiliser (la clé USB), vous demande un
 **mot de passe** pour « ZONECLIMATE », et installe le portail captif.
+Le réseau se **relance automatiquement à chaque démarrage** du Pi.
 
-### d) Utilisation
+### d) Utilisation (sans internet)
 - Sur votre téléphone : connectez-vous au Wi-Fi **« ZONECLIMATE »** → la page de
   connexion ClimaZone s'ouvre automatiquement. *(Sinon : `http://10.42.0.1`.)*
-- Appairez vos appareils Tuya (SmartLife) sur ce même réseau **« ZONECLIMATE »**
-  (ils gardent internet pour l'appairage).
+- Vous pilotez tout le zoning **sans aucune connexion internet**.
+- Si la box est présente, appairez aussi vos appareils Tuya (SmartLife) sur ce
+  même réseau **« ZONECLIMATE »** (ils gardent internet pour l'appairage).
 
 ---
 
