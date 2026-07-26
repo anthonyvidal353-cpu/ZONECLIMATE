@@ -5,6 +5,9 @@ WORKDIR /app/frontend
 ARG REACT_APP_BACKEND_URL=http://localhost:8001
 ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
 ENV WDS_SOCKET_PORT=0
+# Réduit fortement la mémoire nécessaire au build (utile sur Raspberry Pi)
+ENV GENERATE_SOURCEMAP=false
+ENV NODE_OPTIONS=--max-old-space-size=2048
 
 COPY package.json ./
 RUN yarn install
