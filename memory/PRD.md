@@ -75,3 +75,15 @@ backend/{tuya.py (cloud), tuya_local.py (LAN), server.py (~1695 lignes)}, fronte
 - `automate/kiosk-setup.sh` + `README-ecran.md` : mode borne écran tactile (déjà existant).
 - Mise en route en 2 étapes : (1) Wi-Fi maison + Docker + app + RS485 + tests régulation ; (2) plus tard, AP « ZONING VALSON » avec clé USB Wi-Fi.
 - EN ATTENTE : modèle/branchement de l'écran tactile du client (photo demandée).
+
+## Déploiement automate v2 — [2026-07] (images cloud + accès réseau + AP)
+- ⚠️ Le Raspberry NE COMPILE PLUS (OOM/gel constatés). Images pré-construites arm64 via GitHub Actions → GHCR, le Pi ne fait que `pull`.
+  - `.github/workflows/build-pi-images.yml` : build+push arm64 backend+frontend vers ghcr.io/anthonyvidal353-cpu/zoneclimate-{backend,frontend}:latest. Frontend buildé avec `REACT_APP_BACKEND_URL=` (vide → API relative `/api`). Packages GHCR à passer en PUBLIC (1 fois).
+  - `docker-compose.pi.yml` : fichier AUTONOME, réseau host, images GHCR (pull_policy always), passage RS485, + service `proxy` nginx.
+  - Bug corrigé : `network_mode: host` + `networks` = incompatible (compose invalide) → fichier rendu autonome.
+  - `frontend/Dockerfile` : `--platform=$BUILDPLATFORM` (build natif runner), `GENERATE_SOURCEMAP=false`, `NODE_OPTIONS=--max-old-space-size=2048`, `yarn install --network-timeout 600000`.
+  - `frontend/src/lib/api.js` : `BACKEND_URL = process.env.REACT_APP_BACKEND_URL || ""` → API relative si vide.
+- Accès réseau : reverse proxy nginx (`automate/nginx-pi.conf`, port 80, host) → app + `/api` sur une seule adresse. Accès depuis n'importe quel appareil : `http://<IP_PI>` (téléphone/PC) ou `http://localhost` (Pi). Plus de `:3000`.
+- Wi-Fi « ZONECLIMATE » + portail captif : `automate/wifi-ap-setup.sh` (nmcli AP mode + ipv4 shared, SSID ZONECLIMATE, sur la clé USB ; internet maison sur l'antenne interne, partagé pour Tuya). Portail captif = dnsmasq-shared redirige SEULEMENT les URL de détection vers 10.42.0.1 (Tuya garde internet) + nginx renvoie 302 sur ces chemins. Un seul réseau pour utilisateurs + Tuya.
+- Accès distant (PHASE 2, à faire) : Cloudflare Tunnel + nom de domaine (installateur + clients via leurs identifiants/rôles existants). Utilisateur va prendre un domaine.
+- `install-pi.sh` : affiche l'IP du Pi en fin d'install ; démarre via `up -d` (pull, pas de build).

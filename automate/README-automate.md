@@ -93,40 +93,38 @@ Détails et branchements écran : voir **README-ecran.md**.
 
 ---
 
-## Étape 2 — Point d'accès Wi-Fi « ZONING VALSON »
+## Étape 2 — Réseau Wi-Fi « ZONECLIMATE » (avec page de connexion automatique)
 
-> Vous avez la **clé USB Wi-Fi** : on active donc le double Wi-Fi.
-> Principe : l'antenne **interne (wlan0)** diffuse « ZONING VALSON » pour les
-> appareils Tuya ; la **clé USB (wlan1)** garde l'internet de la maison.
+> L'automate diffuse son propre Wi-Fi **« ZONECLIMATE »** (via la clé USB).
+> En s'y connectant, le téléphone **ouvre automatiquement la page de connexion**.
+> L'internet de la maison reste sur l'antenne interne et est **partagé**, pour que
+> les appareils Tuya connectés à « ZONECLIMATE » puissent s'appairer.
+> Un seul réseau pour tout : vous + les appareils Tuya.
 
 ### a) Brancher la clé USB Wi-Fi
-Branchez-la, puis vérifiez qu'elle apparaît :
 ```bash
 nmcli device | grep wifi
 ```
-Vous devez voir **deux** interfaces (ex. `wlan0` interne + `wlan1` clé USB).
+Vous devez voir **deux** interfaces (interne + clé USB).
 
-### b) Mettre l'internet de la maison sur la CLÉ USB (wlan1)
+### b) Vérifier que l'internet maison est bien actif
+Le Wi-Fi de la maison doit rester connecté (sur l'antenne interne). Vérifiez :
 ```bash
-sudo nmcli device wifi connect "NOM_DE_VOTRE_WIFI_MAISON" password "MOT_DE_PASSE_MAISON" ifname wlan1
+ping -c2 8.8.8.8
 ```
-(Vérifiez : `ping -c2 8.8.8.8` doit répondre.)
 
-### c) Créer le point d'accès « ZONING VALSON » sur l'antenne interne (wlan0)
+### c) Créer le réseau « ZONECLIMATE »
 ```bash
 sudo bash ~/zoneclimate/automate/wifi-ap-setup.sh
 ```
-Le script affiche les interfaces + qui porte l'internet, puis vous demande
-l'interface du point d'accès (**wlan0**) et un mot de passe. Il crée le réseau
-avec DHCP + partage internet automatiques.
+Le script détecte tout seul l'antenne à utiliser (la clé USB), vous demande un
+**mot de passe** pour « ZONECLIMATE », et installe le portail captif.
 
-### d) Appairer les appareils Tuya
-Lors de l'appairage dans **SmartLife**, connectez vos appareils au réseau
-**« ZONING VALSON »**. Ils resteront isolés sur l'automate tout en ayant internet
-pour l'appairage initial.
-
-> Si l'AP ne démarre pas sur `wlan0` (rare), relancez le script en choisissant
-> `wlan1` pour l'AP et mettez l'internet maison sur `wlan0`.
+### d) Utilisation
+- Sur votre téléphone : connectez-vous au Wi-Fi **« ZONECLIMATE »** → la page de
+  connexion ClimaZone s'ouvre automatiquement. *(Sinon : `http://10.42.0.1`.)*
+- Appairez vos appareils Tuya (SmartLife) sur ce même réseau **« ZONECLIMATE »**
+  (ils gardent internet pour l'appairage).
 
 ---
 

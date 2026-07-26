@@ -1,51 +1,68 @@
 #!/usr/bin/env bash
 # ============================================================================
-# ClimaZone — Point d'accès Wi-Fi « ZONING VALSON » (Étape 2 — double Wi-Fi)
+# ClimaZone — Réseau Wi-Fi « ZONECLIMATE » + portail captif
 # ----------------------------------------------------------------------------
-# Crée un réseau Wi-Fi « ZONING VALSON » diffusé par l'automate, réservé aux
-# appareils Tuya (gainable/thermostats/vannes), pendant que l'automate reste
-# connecté au Wi-Fi de la maison (internet) via l'AUTRE antenne.
+# L'automate diffuse son propre Wi-Fi « ZONECLIMATE » (via la clé USB).
+# En s'y connectant, le téléphone ouvre AUTOMATIQUEMENT la page de connexion.
+# L'internet de la maison reste sur l'antenne interne et est PARTAGÉ, pour que
+# les appareils Tuya connectés à « ZONECLIMATE » puissent s'appairer.
 #
-# ⚠️ PRÉREQUIS : DEUX antennes Wi-Fi.
-#   - Le Pi 5 n'a qu'une puce Wi-Fi interne (wlan0).
-#   - Il faut donc une CLÉ USB Wi-Fi (wlan1) pour faire les deux en même temps.
-#   Recommandé : point d'accès sur l'antenne INTERNE (wlan0, la plus stable),
-#   et internet maison sur la CLÉ USB (wlan1). Ce script suit cette logique.
-#
-# Utilisation :
-#   sudo bash wifi-ap-setup.sh
-#
+# Prérequis : 2 antennes Wi-Fi (interne = internet maison, clé USB = AP).
+# Utilisation : sudo bash wifi-ap-setup.sh
 # Testé sur Raspberry Pi OS Bookworm (NetworkManager).
 # ============================================================================
 set -euo pipefail
 
-AP_SSID="ZONING VALSON"
-AP_IFACE_DEFAULT="wlan0"     # antenne interne pour l'AP (recommandé)
-CON_NAME="zoning-valson"
+AP_SSID="ZONECLIMATE"
+CON_NAME="zoneclimate-ap"
+GW="10.42.0.1"   # passerelle par défaut du mode partagé NetworkManager
+DNSMASQ_DIR="/etc/NetworkManager/dnsmasq-shared.d"
+DNSMASQ_FILE="${DNSMASQ_DIR}/zoneclimate-captive.conf"
 
 if [ "$(id -u)" -ne 0 ]; then echo "Lancez avec sudo : sudo bash wifi-ap-setup.sh"; exit 1; fi
 if ! command -v nmcli >/dev/null 2>&1; then
-  echo "NetworkManager (nmcli) introuvable. Sur Bookworm il est présent par défaut."
-  echo "Activez-le : sudo raspi-config → Advanced → Network Config → NetworkManager."
-  exit 1
+  echo "NetworkManager (nmcli) introuvable (activez-le via raspi-config)."; exit 1
 fi
 
-echo "Interfaces Wi-Fi détectées :"
-nmcli -t -f DEVICE,TYPE device | grep ':wifi' | cut -d: -f1 | sed 's/^/  - /'
-echo
-echo "Connexions Wi-Fi actives (qui porte internet ?) :"
-nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device | grep ':wifi:' | \
-  awk -F: '{printf "  - %s : %s (%s)\n", $1, $4, $3}'
-echo
-echo "→ Conseil : mettez le Wi-Fi de la MAISON (internet) sur la CLÉ USB,"
-echo "  et gardez l'antenne INTERNE (wlan0) pour le point d'accès."
+# Interface qui porte l'internet (route par défaut) → on garde celle-là pour internet
+INTERNET_IFACE="$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')"
+echo "Interface internet détectée : ${INTERNET_IFACE:-inconnue}"
 
-read -rp "Interface pour le POINT D'ACCÈS « ZONING VALSON » [${AP_IFACE_DEFAULT}] : " AP_IFACE
-AP_IFACE="${AP_IFACE:-$AP_IFACE_DEFAULT}"
-read -rsp "Mot de passe du réseau « ZONING VALSON » (min 8 caractères) : " AP_PASS; echo
+echo "Interfaces Wi-Fi disponibles :"
+mapfile -t WIFI_IFACES < <(nmcli -t -f DEVICE,TYPE device | awk -F: '$2=="wifi"{print $1}')
+for i in "${WIFI_IFACES[@]}"; do echo "  - $i"; done
+
+# Candidate AP = une interface Wi-Fi différente de celle qui porte l'internet
+AP_DEFAULT=""
+for i in "${WIFI_IFACES[@]}"; do
+  if [ "$i" != "${INTERNET_IFACE}" ]; then AP_DEFAULT="$i"; break; fi
+done
+[ -z "${AP_DEFAULT}" ] && AP_DEFAULT="${WIFI_IFACES[0]:-wlan1}"
+
+read -rp "Interface pour le réseau « ${AP_SSID} » [${AP_DEFAULT}] : " AP_IFACE
+AP_IFACE="${AP_IFACE:-$AP_DEFAULT}"
+read -rsp "Mot de passe du réseau « ${AP_SSID} » (min 8 caractères) : " AP_PASS; echo
 if [ "${#AP_PASS}" -lt 8 ]; then echo "Mot de passe trop court (min 8)."; exit 1; fi
 
-echo "→ Création du point d'accès « ${AP_SSID} » sur ${AP_IFACE}…"
+# 1) Portail captif : SEULES les URL de détection pointent vers l'automate.
+#    (Le reste du DNS est forwardé normalement → Tuya garde internet.)
+echo "→ Configuration du portail captif…"
+mkdir -p "${DNSMASQ_DIR}"
+cat > "${DNSMASQ_FILE}" <<EOF
+# Redirige uniquement les vérifications de connectivité vers l'automate (${GW})
+address=/connectivitycheck.gstatic.com/${GW}
+address=/connectivitycheck.android.com/${GW}
+address=/clients3.google.com/${GW}
+address=/clients.l.google.com/${GW}
+address=/captive.apple.com/${GW}
+address=/www.msftconnecttest.com/${GW}
+address=/msftconnecttest.com/${GW}
+address=/www.msftncsi.com/${GW}
+address=/connect.rom.miui.com/${GW}
+EOF
+
+# 2) Création du point d'accès « ZONECLIMATE » (avec partage internet)
+echo "→ Création du réseau « ${AP_SSID} » sur ${AP_IFACE}…"
 nmcli connection delete "${CON_NAME}" >/dev/null 2>&1 || true
 nmcli connection add type wifi ifname "${AP_IFACE}" con-name "${CON_NAME}" autoconnect yes ssid "${AP_SSID}"
 nmcli connection modify "${CON_NAME}" \
@@ -57,8 +74,10 @@ nmcli connection modify "${CON_NAME}" \
 nmcli connection up "${CON_NAME}"
 
 echo
-echo "✅ Point d'accès « ${AP_SSID} » actif sur ${AP_IFACE} (DHCP + partage internet automatiques)."
-echo "   • Connectez vos appareils Tuya (SmartLife) à ce réseau lors de l'appairage."
-echo "   • Gardez l'internet de la maison sur l'AUTRE antenne (clé USB Wi-Fi)."
-echo "   • Pour arrêter :  sudo nmcli connection down ${CON_NAME}"
-echo "   • Pour supprimer : sudo nmcli connection delete ${CON_NAME}"
+echo "✅ Réseau « ${AP_SSID} » actif sur ${AP_IFACE}."
+echo "   • Connectez votre téléphone au Wi-Fi « ${AP_SSID} » → la page de connexion"
+echo "     ClimaZone devrait s'ouvrir automatiquement."
+echo "   • Si elle ne s'ouvre pas, ouvrez le navigateur sur : http://${GW}"
+echo "   • Appairez aussi vos appareils Tuya sur ce réseau (ils gardent internet)."
+echo "   • Arrêter  : sudo nmcli connection down ${CON_NAME}"
+echo "   • Supprimer: sudo nmcli connection delete ${CON_NAME} && sudo rm -f ${DNSMASQ_FILE}"
