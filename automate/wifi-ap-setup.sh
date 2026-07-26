@@ -59,6 +59,9 @@ address=/www.msftconnecttest.com/${GW}
 address=/msftconnecttest.com/${GW}
 address=/www.msftncsi.com/${GW}
 address=/connect.rom.miui.com/${GW}
+address=/detectportal.firefox.com/${GW}
+address=/connectivity-check.ubuntu.com/${GW}
+address=/nmcheck.gnome.org/${GW}
 EOF
 
 # 2) Création du point d'accès « ZONECLIMATE » (avec partage internet)

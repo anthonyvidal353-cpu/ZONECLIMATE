@@ -1021,8 +1021,10 @@ def _read_version():
 
 @api_router.get("/system/update-info")
 async def update_info(user: dict = Depends(require_roles("super_admin", "moderator"))):
+    meta = await db.app_meta.find_one({"_id": "ota"}) or {}
     info = {"enabled": INAPP_UPDATE_ENABLED, "current_version": _read_version(),
-            "update_available": False, "latest_version": None, "detail": None}
+            "update_available": False, "latest_version": None, "detail": None,
+            "last_update_at": meta.get("last_update_at")}
     if not INAPP_UPDATE_ENABLED:
         return info
     try:
@@ -1064,6 +1066,8 @@ async def apply_update(user: dict = Depends(require_roles("super_admin"))):
             volumes={"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
                      REPO_DIR: {"bind": "/repo", "mode": "rw"}},
             working_dir="/repo")
+        await db.app_meta.update_one({"_id": "ota"},
+                                     {"$set": {"last_update_at": now_iso()}}, upsert=True)
         return {"ok": True, "message": "Mise à jour lancée : téléchargement de la nouvelle version, "
                                        "l'application va redémarrer dans une minute (aucune compilation)."}
     except Exception as e:  # noqa: BLE001

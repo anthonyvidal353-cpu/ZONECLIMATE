@@ -53,6 +53,11 @@ export function UpdateBanner() {
             {up && info.latest_version ? <> → <span className="font-mono-num text-heat">{info.latest_version}</span></> : null}
             {info.detail ? <span className="ml-1 text-zinc-400">· {info.detail}</span> : null}
           </p>
+          {info.last_update_at && (
+            <p className="text-[11px] text-zinc-400 mt-0.5" data-testid="update-last-applied">
+              Dernière mise à jour appliquée le {new Date(info.last_update_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+            </p>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
