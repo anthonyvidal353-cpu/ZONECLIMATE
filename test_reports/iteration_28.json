@@ -1,0 +1,18 @@
+{
+  "summary": "OTA update endpoints (iter28) tested. 13/13 pytest OK. GET /api/system/update-info returns properly structured JSON with graceful degradation in cloud (enabled=true, update_available=false, detail='Vérification Git indisponible sur cet environnement.'). RBAC correct: super_admin+moderator OK, client/guest/installer 403, sans token 401. POST /api/system/update: super_admin-only (moderator/client/guest/installer=403, no token=401); in cloud returns HTTP 502 handled cleanly (not crash 500) with french body {\"detail\": \"Impossible de lancer la mise à jour (DockerException). Le socket Docker et le dépôt doivent être montés (configuration Raspberry).\"}. Auth regression: admin login returns access_token OK.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_ota_update_iter28.py", "/app/test_reports/pytest/iter28_ota.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Note: le body 502 renvoyé par le backend est intercepté par Cloudflare edge quand testé via l'URL publique (Cloudflare remplace les 502 origin par sa propre page HTML). Le status code 502 est bien préservé. Vérifié via localhost:8001 que le corps JSON français est correct.",
+    "Le correctif OTA (git fetch --all --prune + git reset --hard @{u} avant docker compose pull + up -d) est bien en place à /app/backend/server.py lignes 1054-1061. La logique elle-même ne peut pas être exécutée en cloud (docker/git manquants), la dégradation est gracieuse comme attendu."
+  ],
+  "updated_files": ["/app/backend/tests/test_ota_update_iter28.py"],
+  "success_rate": {"backend": "100%", "frontend": "N/A"},
+  "test_credentials": "admin@climazone.fr/Admin1234!, moderateur@climazone.fr/Demo1234!, client@demo.fr/Demo1234!, invite@demo.fr/Demo1234!, installateur@demo.fr/Demo1234!",
+  "seed_data_creation": "aucune",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Le test test_apply_update_super_admin_returns_502_in_cloud vérifie le status 502 via URL publique PUIS ré-appelle localhost:8001 pour valider le corps JSON, car Cloudflare masque les corps 502 origin."
+}

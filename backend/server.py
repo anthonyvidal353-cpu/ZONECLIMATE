@@ -1047,9 +1047,16 @@ async def apply_update(user: dict = Depends(require_roles("super_admin"))):
     try:
         import docker
         client = docker.from_env()
-        cmd = ("apk add --no-cache git docker-cli-compose >/dev/null 2>&1; "
+        # MAJ robuste : on force le dépôt local à rejoindre EXACTEMENT la version
+        # distante (git reset --hard) au lieu de `git pull` qui échoue si
+        # l'arborescence a la moindre modif locale → sinon HEAD n'avance jamais
+        # et l'app croit indéfiniment qu'une MAJ est disponible (version inchangée).
+        cmd = ("set -e; "
+               "apk add --no-cache git docker-cli-compose >/dev/null 2>&1; "
                "git config --global --add safe.directory /repo; "
-               "cd /repo; git pull; "
+               "cd /repo; "
+               "git fetch --all --prune; "
+               "git reset --hard @{u}; "
                "docker compose -f docker-compose.pi.yml pull; "
                "docker compose -f docker-compose.pi.yml up -d")
         client.containers.run(
