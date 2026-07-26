@@ -95,15 +95,19 @@ else
   ok "Configuration .env existante conservée (port RS485 mis à jour : ${RS485_DEVICE})."
 fi
 
-# 4b) Nom réseau fixe : http://zoneclimate.local (mDNS / avahi) ------------
-say "Configuration du nom réseau « zoneclimate.local »…"
-sudo hostnamectl set-hostname zoneclimate 2>/dev/null || true
-sudo sed -i "s/^127.0.1.1.*/127.0.1.1\tzoneclimate/" /etc/hosts 2>/dev/null || \
-  echo "127.0.1.1	zoneclimate" | sudo tee -a /etc/hosts >/dev/null || true
+# 4b) Nom réseau fixe : http://<nom>.local (mDNS / avahi) ------------------
+DEFAULT_HOST="zoneclimate"
+read -rp "Nom réseau de cet automate [${DEFAULT_HOST}] (unique si plusieurs Pi) : " AUTOMATE_NAME
+AUTOMATE_NAME="$(echo "${AUTOMATE_NAME:-$DEFAULT_HOST}" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-')"
+[ -z "${AUTOMATE_NAME}" ] && AUTOMATE_NAME="${DEFAULT_HOST}"
+say "Configuration du nom réseau « ${AUTOMATE_NAME}.local »…"
+sudo hostnamectl set-hostname "${AUTOMATE_NAME}" 2>/dev/null || true
+sudo sed -i "s/^127.0.1.1.*/127.0.1.1\t${AUTOMATE_NAME}/" /etc/hosts 2>/dev/null || \
+  echo "127.0.1.1	${AUTOMATE_NAME}" | sudo tee -a /etc/hosts >/dev/null || true
 sudo apt-get install -y avahi-daemon >/dev/null 2>&1 || true
 sudo systemctl enable --now avahi-daemon 2>/dev/null || true
 sudo systemctl restart avahi-daemon 2>/dev/null || true
-ok "Nom réseau : http://zoneclimate.local"
+ok "Nom réseau : http://${AUTOMATE_NAME}.local"
 
 # 5) Démarrage de l'application (téléchargement des images pré-construites) --
 say "Téléchargement et démarrage des conteneurs (aucune compilation)…"
@@ -113,7 +117,7 @@ echo
 PI_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 ok "============================================================"
 ok " ClimaZone est installé et démarré sur l'automate."
-ok " Nom fixe (recommandé)  :  http://zoneclimate.local"
+ok " Nom fixe (recommandé)  :  http://${AUTOMATE_NAME}.local"
 ok " Sur le Pi              :  http://localhost"
 if [ -n "${PI_IP}" ]; then
   ok " Depuis un téléphone/PC :  http://${PI_IP}"
