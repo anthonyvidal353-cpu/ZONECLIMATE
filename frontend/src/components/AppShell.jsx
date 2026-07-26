@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Thermometer, SignOut, UserCircle } from "@phosphor-icons/react";
+import { Thermometer, SignOut, UserCircle, WifiHigh } from "@phosphor-icons/react";
 import { useAuth, ROLE_LABELS } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { WifiManager } from "./WifiManager";
 
 const ROLE_COLORS = {
   super_admin: "#EF4444",
@@ -15,6 +16,7 @@ export const AppShell = ({ children, right }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [wifiOpen, setWifiOpen] = useState(false);
   const rc = ROLE_COLORS[user?.role] || "#71717A";
 
   return (
@@ -55,6 +57,13 @@ export const AppShell = ({ children, right }) => {
                     </span>
                   </div>
                   <button
+                    data-testid="wifi-menu-btn"
+                    onClick={() => { setOpen(false); setWifiOpen(true); }}
+                    className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors duration-200"
+                  >
+                    <WifiHigh size={16} /> Réseau Wi-Fi
+                  </button>
+                  <button
                     data-testid="logout-btn"
                     onClick={logout}
                     className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors duration-200"
@@ -68,6 +77,7 @@ export const AppShell = ({ children, right }) => {
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-4 md:px-8 py-8">{children}</main>
+      <WifiManager open={wifiOpen} onOpenChange={setWifiOpen} />
     </div>
   );
 };

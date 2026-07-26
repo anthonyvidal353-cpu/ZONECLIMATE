@@ -32,6 +32,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/repo
+      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
     devices:
       - "${RS485_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0"
     group_add:
@@ -47,6 +48,8 @@ services:
       - FRONTEND_URL=http://localhost:3000
       - INAPP_UPDATE_ENABLED=${INAPP_UPDATE_ENABLED:-true}
       - REPO_DIR=/repo
+      - HOME_WIFI_IFACE=${HOME_WIFI_IFACE:-wlan0}
+      - DBUS_SYSTEM_BUS_ADDRESS=unix:path=/var/run/dbus/system_bus_socket
     depends_on:
       - mongo
 

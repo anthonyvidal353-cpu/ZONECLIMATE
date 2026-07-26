@@ -25,6 +25,7 @@ from typing import List, Optional
 import tuya
 import tuya_local
 import modbus_gainable
+import wifi_manager
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -2202,6 +2203,31 @@ async def reg_logs(owner_email: Optional[str] = None, installation_id: Optional[
     limit = max(1, min(limit, 1000))
     rows = await db.reg_logs.find(q, {"_id": 0, "created_at": 0}).sort("ts", -1).to_list(limit)
     return rows
+
+
+@api_router.get("/system/wifi/status")
+async def system_wifi_status(user: dict = Depends(get_current_user)):
+    """État du Wi-Fi maison de l'automate."""
+    return await wifi_manager.status()
+
+
+@api_router.get("/system/wifi/scan")
+async def system_wifi_scan(user: dict = Depends(get_current_user)):
+    """Liste les réseaux Wi-Fi à proximité de l'automate."""
+    return await wifi_manager.scan()
+
+
+class WifiConnectPayload(BaseModel):
+    ssid: str
+    password: Optional[str] = ""
+
+
+@api_router.post("/system/wifi/connect")
+async def system_wifi_connect(payload: WifiConnectPayload, user: dict = Depends(get_current_user)):
+    """Connecte l'automate au Wi-Fi de la maison (interface interne)."""
+    if not payload.ssid.strip():
+        raise HTTPException(400, "Nom du réseau (SSID) requis")
+    return await wifi_manager.connect(payload.ssid.strip(), payload.password or "")
 
 
 @api_router.get("/")

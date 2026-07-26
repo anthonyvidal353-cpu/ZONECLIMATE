@@ -87,3 +87,10 @@ backend/{tuya.py (cloud), tuya_local.py (LAN), server.py (~1695 lignes)}, fronte
 - Wi-Fi « ZONECLIMATE » + portail captif : `automate/wifi-ap-setup.sh` (nmcli AP mode + ipv4 shared, SSID ZONECLIMATE, sur la clé USB ; internet maison sur l'antenne interne, partagé pour Tuya). Portail captif = dnsmasq-shared redirige SEULEMENT les URL de détection vers 10.42.0.1 (Tuya garde internet) + nginx renvoie 302 sur ces chemins. Un seul réseau pour utilisateurs + Tuya.
 - Accès distant (PHASE 2, à faire) : Cloudflare Tunnel + nom de domaine (installateur + clients via leurs identifiants/rôles existants). Utilisateur va prendre un domaine.
 - `install-pi.sh` : affiche l'IP du Pi en fin d'install ; démarre via `up -d` (pull, pas de build).
+
+## Gestion Wi-Fi in-app — [2026-07]
+- Objectif : installateur configure via l'AP « ZONECLIMATE » (sans IP) ; le client saisit le Wi-Fi maison DANS l'app → le Pi rejoint le réseau → accès depuis le réseau du client (et distant en phase 2 via Cloudflare).
+- Backend : `wifi_manager.py` (nmcli via subprocess, dégradation gracieuse si nmcli absent). Endpoints `GET /api/system/wifi/status`, `GET /api/system/wifi/scan`, `POST /api/system/wifi/connect` (auth requise, tous rôles). Interface maison = env `HOME_WIFI_IFACE` (défaut wlan0).
+- Backend image : `network-manager` installé dans le Dockerfile ; compose Pi monte `/var/run/dbus/system_bus_socket` + `DBUS_SYSTEM_BUS_ADDRESS` pour piloter le NetworkManager de l'hôte.
+- Frontend : `WifiManager.jsx` (dialog scan/connexion/statut) ouvert depuis le menu utilisateur (AppShell) → accessible à tous les rôles connectés.
+- VALIDÉ en cloud : endpoints dégradent proprement (nmcli absent), auth 401, UI rendue. NON testé sur matériel réel (nécessite le Raspberry).
