@@ -95,6 +95,16 @@ else
   ok "Configuration .env existante conservée (port RS485 mis à jour : ${RS485_DEVICE})."
 fi
 
+# 4b) Nom réseau fixe : http://zoneclimate.local (mDNS / avahi) ------------
+say "Configuration du nom réseau « zoneclimate.local »…"
+sudo hostnamectl set-hostname zoneclimate 2>/dev/null || true
+sudo sed -i "s/^127.0.1.1.*/127.0.1.1\tzoneclimate/" /etc/hosts 2>/dev/null || \
+  echo "127.0.1.1	zoneclimate" | sudo tee -a /etc/hosts >/dev/null || true
+sudo apt-get install -y avahi-daemon >/dev/null 2>&1 || true
+sudo systemctl enable --now avahi-daemon 2>/dev/null || true
+sudo systemctl restart avahi-daemon 2>/dev/null || true
+ok "Nom réseau : http://zoneclimate.local"
+
 # 5) Démarrage de l'application (téléchargement des images pré-construites) --
 say "Téléchargement et démarrage des conteneurs (aucune compilation)…"
 sudo docker compose -f docker-compose.pi.yml up -d
@@ -103,6 +113,7 @@ echo
 PI_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 ok "============================================================"
 ok " ClimaZone est installé et démarré sur l'automate."
+ok " Nom fixe (recommandé)  :  http://zoneclimate.local"
 ok " Sur le Pi              :  http://localhost"
 if [ -n "${PI_IP}" ]; then
   ok " Depuis un téléphone/PC :  http://${PI_IP}"
