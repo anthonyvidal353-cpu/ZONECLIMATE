@@ -85,7 +85,7 @@ backend/{tuya.py (cloud), tuya_local.py (LAN), server.py (~1695 lignes)}, fronte
   - `frontend/src/lib/api.js` : `BACKEND_URL = process.env.REACT_APP_BACKEND_URL || ""` → API relative si vide.
 - Accès réseau : reverse proxy nginx (`automate/nginx-pi.conf`, port 80, host) → app + `/api` sur une seule adresse. Accès depuis n'importe quel appareil : `http://<IP_PI>` (téléphone/PC) ou `http://localhost` (Pi). Plus de `:3000`.
 - Wi-Fi « ZONECLIMATE » + portail captif : `automate/wifi-ap-setup.sh` (nmcli AP mode + ipv4 shared, SSID ZONECLIMATE, sur la clé USB ; internet maison sur l'antenne interne, partagé pour Tuya). Portail captif = dnsmasq-shared redirige SEULEMENT les URL de détection vers 10.42.0.1 (Tuya garde internet) + nginx renvoie 302 sur ces chemins. Un seul réseau pour utilisateurs + Tuya.
-- Accès distant (PHASE 2, à faire) : Cloudflare Tunnel + nom de domaine (installateur + clients via leurs identifiants/rôles existants). Utilisateur va prendre un domaine.
+- Accès distant (PHASE 2) : Cloudflare Tunnel — CHOIX RETENU par l'utilisateur (chaque client se connecte avec ses propres identifiants via une URL, sans app à installer). Service `cloudflared` ajouté à docker-compose.pi.yml (profil "remote", token via CLOUDFLARE_TUNNEL_TOKEN dans .env). Guide : `automate/README-acces-distant.md`. Un tunnel + sous-domaine par automate → localhost:80. Utilisateur doit prendre un nom de domaine.
 - `install-pi.sh` : affiche l'IP du Pi en fin d'install ; démarre via `up -d` (pull, pas de build).
 
 ## Gestion Wi-Fi in-app — [2026-07]

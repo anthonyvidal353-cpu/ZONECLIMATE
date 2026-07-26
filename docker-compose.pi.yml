@@ -75,5 +75,18 @@ services:
       - frontend
       - backend
 
+  # Accès à distance pour les clients (URL publique via Cloudflare Tunnel).
+  # Ne démarre QUE si activé : profil "remote" + CLOUDFLARE_TUNNEL_TOKEN dans .env
+  #   sudo docker compose -f docker-compose.pi.yml --profile remote up -d
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: zoneclimate-cloudflared
+    restart: unless-stopped
+    network_mode: host
+    profiles: ["remote"]
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - proxy
+
 volumes:
   mongo_data:
