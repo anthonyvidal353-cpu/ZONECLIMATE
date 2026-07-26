@@ -1,0 +1,56 @@
+name: Build automate images (arm64)
+
+# Construit les images Docker de ClimaZone pour Raspberry Pi (arm64) dans le
+# cloud GitHub (gratuit), puis les publie sur GHCR. Le Raspberry n'a plus qu'à
+# les TÉLÉCHARGER (aucune compilation locale → pas de surchauffe).
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Namespace en minuscules
+        id: ns
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push backend (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/${{ steps.ns.outputs.owner }}/zoneclimate-backend:latest
+
+      - name: Build & push frontend (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          platforms: linux/arm64
+          push: true
+          build-args: |
+            REACT_APP_BACKEND_URL=http://localhost:8001
+          tags: ghcr.io/${{ steps.ns.outputs.owner }}/zoneclimate-frontend:latest

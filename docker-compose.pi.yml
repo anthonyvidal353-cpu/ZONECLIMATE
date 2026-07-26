@@ -1,12 +1,16 @@
 # ============================================================================
-# ClimaZone — Fichier Docker COMPLET pour l'automate (Raspberry Pi / Linux)
+# ClimaZone — Docker pour l'automate (Raspberry Pi) — IMAGES PRÉ-CONSTRUITES
 # ----------------------------------------------------------------------------
-# Fichier AUTONOME (à utiliser SEUL, pas en surcharge du docker-compose.yml).
-# Réseau "host" : indispensable pour le pilotage local Tuya (scan UDP + accès
-# direct aux appareils sur le LAN) et pour le point d'accès Wi-Fi.
+# Le Raspberry TÉLÉCHARGE des images déjà construites dans le cloud (GHCR),
+# il ne compile RIEN → rapide, pas de surchauffe. Idéal pour dupliquer.
+#
+# Les images sont produites automatiquement par GitHub Actions à chaque
+# « Save to GitHub » (voir .github/workflows/build-pi-images.yml).
 #
 # Lancement sur le Pi :
-#   sudo docker compose -f docker-compose.pi.yml up -d --build
+#   sudo docker compose -f docker-compose.pi.yml up -d
+#
+# Réseau "host" : indispensable pour le pilotage local Tuya (scan UDP) et l'AP.
 # ============================================================================
 name: zoneclimate
 
@@ -20,15 +24,14 @@ services:
       - mongo_data:/data/db
 
   backend:
-    build: ./backend
+    image: ghcr.io/${GHCR_OWNER:-anthonyvidal353-cpu}/zoneclimate-backend:latest
+    pull_policy: always
     container_name: zoneclimate-backend
     restart: unless-stopped
     network_mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/repo
-    # Convertisseur USB-RS485 (gainable A-B-GND). install-pi.sh détecte le port
-    # réel et l'écrit dans RS485_DEVICE (.env).
     devices:
       - "${RS485_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0"
     group_add:
@@ -48,10 +51,8 @@ services:
       - mongo
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        REACT_APP_BACKEND_URL: http://localhost:8001
+    image: ghcr.io/${GHCR_OWNER:-anthonyvidal353-cpu}/zoneclimate-frontend:latest
+    pull_policy: always
     container_name: zoneclimate-frontend
     restart: unless-stopped
     network_mode: host

@@ -95,9 +95,9 @@ else
   ok "Configuration .env existante conservée (port RS485 mis à jour : ${RS485_DEVICE})."
 fi
 
-# 5) Démarrage de l'application ---------------------------------------------
-say "Construction et démarrage des conteneurs (Docker)…"
-sudo docker compose -f docker-compose.pi.yml up -d --build
+# 5) Démarrage de l'application (téléchargement des images pré-construites) --
+say "Téléchargement et démarrage des conteneurs (aucune compilation)…"
+sudo docker compose -f docker-compose.pi.yml up -d
 
 echo
 ok "============================================================"

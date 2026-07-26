@@ -15,6 +15,21 @@ les appareils Tuya (nécessite une clé USB Wi-Fi).
 
 ---
 
+## Étape 0 — Construire les images dans le cloud (UNE SEULE FOIS)
+
+> L'app n'est **jamais compilée sur le Raspberry** (trop lent). Elle est construite
+> gratuitement par **GitHub Actions**, puis le Pi la télécharge toute prête.
+
+1. Faites **« Save to GitHub »** : ça déclenche la construction automatique
+   (onglet **Actions** de votre dépôt → attendez le ✅ vert, ~15 min).
+2. Rendez les 2 images **publiques** (pour que le Pi les télécharge sans mot de passe) :
+   - Sur github.com → votre profil → onglet **Packages** →
+     `zoneclimate-backend` → **Package settings** → **Change visibility** → **Public**.
+   - Idem pour `zoneclimate-frontend`.
+   *(À faire une seule fois. Ensuite chaque mise à jour est automatique.)*
+
+---
+
 ## Étape 1 — Installation de l'application
 
 ### 1. Ouvrir un terminal sur le Pi
@@ -38,6 +53,7 @@ Le script :
 3. détecte le **convertisseur RS485** (branchez-le AVANT) ;
 4. crée la configuration (`.env`) — il vous demande l'**email** et le
    **mot de passe administrateur** ;
+5. **télécharge** les images pré-construites et démarre l'app (aucune compilation).
 5. construit et démarre l'application.
 
 ### 3. Ouvrir l'application
@@ -113,8 +129,9 @@ pour l'appairage initial.
 ---
 
 ## 🔄 Mettre à jour l'automate plus tard
+Après un « Save to GitHub » (les images se reconstruisent toutes seules), sur le Pi :
 ```bash
-cd ~/zoneclimate && git pull && sudo docker compose -f docker-compose.pi.yml up -d --build
+cd ~/zoneclimate && git pull && sudo docker compose -f docker-compose.pi.yml pull && sudo docker compose -f docker-compose.pi.yml up -d
 ```
 
 ## 🧯 Dépannage rapide
