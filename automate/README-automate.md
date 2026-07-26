@@ -21,14 +21,15 @@ les appareils Tuya (nécessite une clé USB Wi-Fi).
 Bureau → icône **Terminal** (ou `Ctrl+Alt+T`).
 
 ### 2. Lancer l'installation en une commande
-Remplacez l'URL par celle de **votre dépôt GitHub** :
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<VOTRE_COMPTE>/<VOTRE_DEPOT>/main/automate/install-pi.sh -o install-pi.sh
-bash install-pi.sh https://github.com/<VOTRE_COMPTE>/<VOTRE_DEPOT>.git
+curl -fsSL https://raw.githubusercontent.com/anthonyvidal353-cpu/ZONECLIMATE/main/automate/install-pi.sh -o install-pi.sh
+bash install-pi.sh https://github.com/anthonyvidal353-cpu/ZONECLIMATE.git
 ```
 
-> Si vous préférez : clonez d'abord le dépôt, puis lancez
+> Si votre branche principale s'appelle `master` (et non `main`), remplacez
+> `main` par `master` dans la 1ʳᵉ ligne.
+> Autre option : clonez d'abord le dépôt, puis lancez
 > `bash ~/zoneclimate/automate/install-pi.sh`.
 
 Le script :

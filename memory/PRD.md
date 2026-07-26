@@ -65,3 +65,13 @@ Voir /app/memory/test_credentials.md. Admin : admin@climazone.fr / Admin1234! (t
 
 ## Architecture fichiers
 backend/{tuya.py (cloud), tuya_local.py (LAN), server.py (~1695 lignes)}, frontend/src/{components,pages,lib}, docker-compose.yml, docker-compose.pi.yml, maj-zoneclimate.bat, VERSION (1.0.0).
+
+## Déploiement automate (Raspberry Pi 5) — [2026-07]
+- Dépôt GitHub utilisateur : `github.com/anthonyvidal353-cpu/ZONECLIMATE` (branche main).
+- `docker-compose.pi.yml` : réseau host + passage du port série RS485 au backend (`devices: ${RS485_DEVICE:-/dev/ttyUSB0}` + group_add dialout).
+- `automate/install-pi.sh` : installateur tout-en-un (Docker + clone/pull + génération .env avec JWT_SECRET/TUYA_ENC_KEY aléatoires + détection auto RS485 /dev/ttyUSB*|ACM* + build & up). Clone dans ~/zoneclimate.
+- `automate/wifi-ap-setup.sh` : point d'accès « ZONING VALSON » via nmcli (mode ap + ipv4 shared). ÉTAPE 2 — nécessite une 2ᵉ antenne (clé USB Wi-Fi) car le Pi 5 n'a qu'une puce Wi-Fi interne.
+- `automate/README-automate.md` : guide pas à pas (Étape 1 Wi-Fi maison + RS485 + écran ; Étape 2 double Wi-Fi).
+- `automate/kiosk-setup.sh` + `README-ecran.md` : mode borne écran tactile (déjà existant).
+- Mise en route en 2 étapes : (1) Wi-Fi maison + Docker + app + RS485 + tests régulation ; (2) plus tard, AP « ZONING VALSON » avec clé USB Wi-Fi.
+- EN ATTENTE : modèle/branchement de l'écran tactile du client (photo demandée).
