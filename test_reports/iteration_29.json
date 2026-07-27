@@ -1,0 +1,21 @@
+{
+  "summary": "Iter29 : validation complète du panneau tactile ESP32-S3 (/api/panel/*) et régression associate-qr. 13/13 pytest OK. Auth jeton X-Panel-Token: 401 sans/avec mauvais jeton, 200 avec ZONECLIMATE-PANEL-2026. GET installations/zones/catalog structure conforme (id, name, control_mode / id, name, icon, is_master, setpoint, current_temp / code, name, category, online). 404 sur installation inconnue (zones, associate). POST /api/panel/{iid}/associate : (a) gainable → auto-assigné à la zone maître ✓, (b) new_zone_name → nouvelle zone créée avec icône choisie et device rattaché ✓, (c) zone_id existant → device rattaché et zone.device_id mis à jour ✓. Code inconnu → 404 ✓. Ré-association du même appareil → 400 'déjà associé' ✓. Le code disparaît de catalog/unassigned après association ✓. Le payload device ne fuit ni tuya_id ni product_id ✓. Régression : POST /api/installations/{iid}/associate-qr avec JWT admin marche toujours après refactor sur le helper commun _associate_device_by_code, et reste 401/403 sans JWT ✓.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_panel_associate_branches.py", "/app/test_reports/pytest/iter29_panel.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Bon partage de logique via _associate_device_by_code : le refactor évite la duplication entre associate_qr (JWT) et panel_associate (jeton). Les deux endpoints se comportent de manière strictement équivalente sur les 3 branches et sur les cas d'erreur.",
+    "require_panel_token utilise hmac.compare_digest (protection timing-attack) — bien.",
+    "panel_catalog_unassigned filtre correctement sur included_local_ids() ∩ ¬_mark_catalog_assignment() : après association, l'appareil disparaît immédiatement de la liste.",
+    "Suggestion mineure (non bloquant) : panel_installations pourrait accepter aussi HEAD/HEAD auth pour heartbeat de l'ESP32 sans consommer la BDD ; à voir si le firmware en a besoin."
+  ],
+  "updated_files": ["/app/backend/tests/test_panel_associate_branches.py"],
+  "success_rate": {"backend": "100%", "frontend": "N/A"},
+  "test_credentials": "X-Panel-Token: ZONECLIMATE-PANEL-2026 ; admin@climazone.fr / Admin1234!",
+  "seed_data_creation": "Entrées catalogue + local_devices TEST-* créées à la volée dans chaque test puis supprimées via cleanup (devices, catalog, local_devices, zones TEST *). BDD vérifiée propre après exécution : 0 résidu.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Le module de test /app/backend/tests/test_panel_associate_branches.py couvre exhaustivement les endpoints /api/panel/* et la régression /api/installations/{iid}/associate-qr. Il crée ses propres entrées catalogue (préfixe TEST-) et les nettoie. Réutilisable tel quel pour toute régression future du helper _associate_device_by_code.",
+  "rca of the issue": "Aucune régression détectée."
+}

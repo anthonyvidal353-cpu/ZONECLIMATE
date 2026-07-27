@@ -7,6 +7,7 @@ load_dotenv(ROOT_DIR / '.env')
 import os
 import json
 import math
+import hmac
 import asyncio
 import logging
 import random
@@ -212,6 +213,22 @@ def require_roles(*roles):
             raise HTTPException(403, "Accès refusé")
         return user
     return dep
+
+
+# ----------------------------- Auth panneau tactile (jeton d'appareil fixe) -----------------------------
+# Le panneau ESP32-S3 (borne d'appairage) s'authentifie avec un jeton FIXE partagé,
+# envoyé dans l'en-tête X-Panel-Token, pour qu'il fonctionne dès la mise en service
+# (aucun login à taper). Jeton lu dans .env avec une valeur par défaut embarquée
+# aussi dans le firmware. Réseau local isolé.
+from fastapi import Header  # noqa: E402
+
+PANEL_TOKEN = os.environ.get("PANEL_TOKEN", "ZONECLIMATE-PANEL-2026").strip()
+
+
+async def require_panel_token(x_panel_token: Optional[str] = Header(default=None, alias="X-Panel-Token")):
+    if not x_panel_token or not hmac.compare_digest(x_panel_token.encode("utf-8"), PANEL_TOKEN.encode("utf-8")):
+        raise HTTPException(401, "Jeton de panneau invalide ou manquant")
+    return {"auth_type": "panel"}
 
 
 # ----------------------------- Models -----------------------------
@@ -1710,7 +1727,15 @@ async def ignore_pairing(iid: str, pid: str, user: dict = Depends(get_current_us
 async def associate_qr(iid: str, payload: AssociateQR, user: dict = Depends(get_current_user)):
     # Association SÛRE par QR code : le code identifie précisément le bon appareil.
     await get_installation_for(user, iid, write=True)
-    code = (payload.code or "").strip().upper().replace("ZONECLIMATE:", "")
+    return await _associate_device_by_code(iid, payload.code, payload.zone_id,
+                                           payload.new_zone_name, payload.new_zone_icon)
+
+
+async def _associate_device_by_code(iid: str, code: str, zone_id: Optional[str] = None,
+                                    new_zone_name: Optional[str] = None, new_zone_icon: str = "house"):
+    """Cœur de l'association d'un appareil (code catalogue → zone). Réutilisé par
+    l'UI web (associate_qr) ET le panneau tactile ESP32-S3 (auth par jeton)."""
+    code = (code or "").strip().upper().replace("ZONECLIMATE:", "")
     entry = await db.catalog.find_one({"code": code})
     if not entry:
         raise HTTPException(404, "QR code inconnu. Cet appareil n'a pas été enregistré par l'installateur.")
@@ -1726,21 +1751,21 @@ async def associate_qr(iid: str, payload: AssociateQR, user: dict = Depends(get_
         master = await db.zones.find_one({"installation_id": iid, "is_master": True})
         device.zone_id = master["id"] if master else None
         await db.devices.insert_one(device.model_dump())
-    elif payload.new_zone_name:
+    elif new_zone_name:
         last = await db.zones.find({"installation_id": iid}).sort("order", -1).to_list(1)
         order = (last[0]["order"] + 1) if last else 0
-        zone = Zone(installation_id=iid, name=payload.new_zone_name, icon=payload.new_zone_icon, order=order)
+        zone = Zone(installation_id=iid, name=new_zone_name, icon=new_zone_icon, order=order)
         device.zone_id = zone.id
         zone.device_id = device.id
         await db.zones.insert_one(zone.model_dump())
         await db.devices.insert_one(device.model_dump())
-    elif payload.zone_id:
-        zone = await db.zones.find_one({"installation_id": iid, "id": payload.zone_id})
+    elif zone_id:
+        zone = await db.zones.find_one({"installation_id": iid, "id": zone_id})
         if not zone:
             raise HTTPException(404, "Zone introuvable")
-        device.zone_id = payload.zone_id
+        device.zone_id = zone_id
         await db.devices.insert_one(device.model_dump())
-        await db.zones.update_one({"id": payload.zone_id}, {"$set": {"device_id": device.id}})
+        await db.zones.update_one({"id": zone_id}, {"$set": {"device_id": device.id}})
     else:
         raise HTTPException(400, "Choisissez une zone ou créez-en une")
 
@@ -1749,6 +1774,60 @@ async def associate_qr(iid: str, payload: AssociateQR, user: dict = Depends(get_
     dev.pop("product_id", None)
     dev.pop("tuya_id", None)
     return {"device": dev, "zones": [Zone(**z).model_dump() for z in zones]}
+
+
+# ----------------------------- Panneau tactile ESP32-S3 (borne d'appairage) -----------------------------
+class PanelAssociate(BaseModel):
+    code: str
+    zone_id: Optional[str] = None
+    new_zone_name: Optional[str] = None
+    new_zone_icon: str = "house"
+
+
+@api_router.get("/panel/installations")
+async def panel_installations(_=Depends(require_panel_token)):
+    """Liste des installations hébergées par cet automate (pour le panneau tactile)."""
+    docs = await db.installations.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(50)
+    out = []
+    for d in docs:
+        sys = await db.system.find_one({"installation_id": d["id"]}, {"_id": 0, "control_mode": 1})
+        out.append({"id": d["id"], "name": d["name"],
+                    "control_mode": (sys or {}).get("control_mode", "cloud")})
+    return out
+
+
+@api_router.get("/panel/installations/{iid}/zones")
+async def panel_zones(iid: str, _=Depends(require_panel_token)):
+    if not await db.installations.find_one({"id": iid}, {"_id": 0, "id": 1}):
+        raise HTTPException(404, "Installation introuvable")
+    docs = await db.zones.find({"installation_id": iid}, {"_id": 0}).sort("order", 1).to_list(200)
+    return [{"id": z["id"], "name": z["name"], "icon": z.get("icon", "house"),
+             "is_master": z.get("is_master", False), "setpoint": z.get("setpoint", 21.0),
+             "current_temp": z.get("current_temp", 21.0)} for z in docs]
+
+
+@api_router.get("/panel/installations/{iid}/catalog/unassigned")
+async def panel_catalog_unassigned(iid: str, _=Depends(require_panel_token)):
+    """Appareils du catalogue inclus mais pas encore associés (pour choisir/saisir le code)."""
+    if not await db.installations.find_one({"id": iid}, {"_id": 0, "id": 1}):
+        raise HTTPException(404, "Installation introuvable")
+    included = await included_local_ids()
+    used = await _mark_catalog_assignment()
+    docs = await db.catalog.find({}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    out = []
+    for c in docs:
+        if c.get("tuya_id") in included and c.get("tuya_id") not in used:
+            out.append({"code": c["code"], "name": c.get("name"), "category": c.get("category"),
+                        "online": c.get("online", True)})
+    return out
+
+
+@api_router.post("/panel/installations/{iid}/associate")
+async def panel_associate(iid: str, payload: PanelAssociate, _=Depends(require_panel_token)):
+    if not await db.installations.find_one({"id": iid}, {"_id": 0, "id": 1}):
+        raise HTTPException(404, "Installation introuvable")
+    return await _associate_device_by_code(iid, payload.code, payload.zone_id,
+                                           payload.new_zone_name, payload.new_zone_icon)
 
 
 # ----------------------------- Simulation -----------------------------
