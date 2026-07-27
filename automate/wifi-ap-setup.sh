@@ -62,13 +62,14 @@ address=/connect.rom.miui.com/${GW}
 address=/detectportal.firefox.com/${GW}
 address=/connectivity-check.ubuntu.com/${GW}
 address=/nmcheck.gnome.org/${GW}
-# RFC 8910 : annonce l'URL du portail captif directement dans le DHCP (option 114).
-# iOS 14+/Android 11+ ouvrent alors l'app AUTOMATIQUEMENT, sans dépendre du DNS.
-dhcp-option=114,"http://${GW}/captive-portal-api"
 EOF
 
 # 2) Création du point d'accès « ZONECLIMATE » (avec partage internet)
 echo "→ Création du réseau « ${AP_SSID} » sur ${AP_IFACE}…"
+# Liaison par ADRESSE MAC (et non par nom wlanX) : indispensable car le Pi
+# inverse parfois wlan0/wlan1 au redémarrage. Ainsi l'AP retrouve TOUJOURS la
+# bonne antenne, quel que soit l'ordre d'énumération.
+AP_MAC=$(cat /sys/class/net/${AP_IFACE}/address 2>/dev/null)
 nmcli connection delete "${CON_NAME}" >/dev/null 2>&1 || true
 nmcli connection add type wifi ifname "${AP_IFACE}" con-name "${CON_NAME}" autoconnect yes ssid "${AP_SSID}"
 nmcli connection modify "${CON_NAME}" \
@@ -79,6 +80,10 @@ nmcli connection modify "${CON_NAME}" \
   connection.autoconnect-priority 10 \
   wifi-sec.key-mgmt wpa-psk \
   wifi-sec.psk "${AP_PASS}"
+# Épingler par MAC (stable au reboot) et NE PAS figer le nom d'interface.
+if [ -n "${AP_MAC}" ]; then
+  nmcli connection modify "${CON_NAME}" 802-11-wireless.mac-address "${AP_MAC}" connection.interface-name ""
+fi
 nmcli connection up "${CON_NAME}"
 
 # NB : le mode « shared » fournit un DHCP + DNS LOCAUX même SANS Internet.
