@@ -23,26 +23,26 @@ export function UpdateBanner() {
       /* silencieux */
     } finally { setChecking(false); }
   };
-  useEffect(() => { load(false); }, []);
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
-  // Masqué si la fonctionnalité est désactivée (ex: PC Windows) ou pas encore chargée.
-  if (!info || !info.enabled) return null;
-
-  // Suit la progression réelle : on interroge le backend jusqu'à ce que la
-  // nouvelle version soit en ligne (téléchargement → redémarrage → terminé).
-  const runProgress = (before) => {
-    const start = Date.now();
-    const EST = 150000;        // durée estimée (barre monte jusqu'à 92 %)
+  // Suit la progression RÉELLE et RÉSISTE au rechargement de page :
+  // l'état est stocké dans localStorage → un F5 ne perd plus la progression.
+  const LS_KEY = "climazone_ota";
+  const runProgress = (before, startedAt) => {
+    const start = startedAt || Date.now();
+    const EST = 150000;
     let seenDown = false;
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(async () => {
       const elapsed = Date.now() - start;
-      setProgress((p) => Math.min(92, Math.max(p, Math.round((elapsed / EST) * 92))));
+      setProgress((p) => Math.min(94, Math.max(p, Math.round((elapsed / EST) * 94))));
       try {
         const d = await api.getUpdateInfo();
-        if (seenDown && (!d.update_available || (d.current_version && d.current_version !== before))) {
+        // Terminé dès que le backend confirme la nouvelle version (après un délai
+        // mini de 20s pour laisser le temps au redémarrage).
+        const changed = !d.update_available || (d.current_version && before && d.current_version !== before);
+        if ((seenDown || elapsed > 20000) && changed) {
           clearInterval(timerRef.current);
+          localStorage.removeItem(LS_KEY);
           setProgress(100);
           setPhase("Mise à jour terminée ✅ — vous pouvez tester.");
           setDone(true);
@@ -57,21 +57,45 @@ export function UpdateBanner() {
       }
       if (elapsed > 300000) {
         clearInterval(timerRef.current);
-        setPhase("Cela prend plus de temps que prévu. Cliquez sur « Vérifier » dans un instant.");
+        localStorage.removeItem(LS_KEY);
+        setProgress(100);
+        setPhase("Mise à jour probablement terminée. Rechargez la page pour vérifier.");
+        setDone(true);
       }
     }, 3000);
   };
+
+  useEffect(() => {
+    load(false);
+    // Reprend une mise à jour en cours après un rechargement de page.
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+      if (saved && Date.now() - saved.startedAt < 360000) {
+        setApplying(true); setProgress(10);
+        setPhase("Reprise du suivi de la mise à jour…");
+        runProgress(saved.before, saved.startedAt);
+      } else if (saved) {
+        localStorage.removeItem(LS_KEY);
+      }
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  // Masqué si la fonctionnalité est désactivée (ex: PC Windows) ou pas encore chargée.
+  if (!info || !info.enabled) return null;
 
   const apply = async () => {
     setApplying(true); setDone(false); setProgress(6);
     setPhase("Téléchargement de la nouvelle version…");
     const before = info?.current_version || "";
+    localStorage.setItem(LS_KEY, JSON.stringify({ startedAt: Date.now(), before }));
     try {
       const r = await api.applyUpdate();
       toast.success(r.message || "Mise à jour lancée. L'application va redémarrer.");
-      runProgress(before);
+      runProgress(before, Date.now());
     } catch (e) {
       setApplying(false); setProgress(0); setPhase("");
+      localStorage.removeItem(LS_KEY);
       toast.error(formatApiErrorDetail(e.response?.data?.detail));
     }
   };
