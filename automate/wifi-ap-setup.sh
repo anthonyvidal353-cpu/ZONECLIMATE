@@ -62,6 +62,9 @@ address=/connect.rom.miui.com/${GW}
 address=/detectportal.firefox.com/${GW}
 address=/connectivity-check.ubuntu.com/${GW}
 address=/nmcheck.gnome.org/${GW}
+# RFC 8910 : annonce l'URL du portail captif directement dans le DHCP (option 114).
+# iOS 14+/Android 11+ ouvrent alors l'app AUTOMATIQUEMENT, sans dépendre du DNS.
+dhcp-option=114,http://${GW}/captive-portal-api
 EOF
 
 # 2) Création du point d'accès « ZONECLIMATE » (avec partage internet)
