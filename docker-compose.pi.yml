@@ -48,6 +48,7 @@ services:
       - FRONTEND_URL=http://localhost:3000
       - INAPP_UPDATE_ENABLED=${INAPP_UPDATE_ENABLED:-true}
       - REPO_DIR=/repo
+      - HOST_REPO_DIR=${PWD}
       - PANEL_TOKEN=${PANEL_TOKEN:-ZONECLIMATE-PANEL-2026}
       - HOME_WIFI_IFACE=${HOME_WIFI_IFACE:-wlan0}
       - DBUS_SYSTEM_BUS_ADDRESS=unix:path=/var/run/dbus/system_bus_socket

@@ -1066,14 +1066,16 @@ async def apply_update(user: dict = Depends(require_roles("super_admin"))):
     try:
         import docker
         client = docker.from_env()
-        # MAJ robuste : on force le dépôt local à rejoindre EXACTEMENT la version
-        # distante (git reset --hard) au lieu de `git pull` qui échoue si
-        # l'arborescence a la moindre modif locale → sinon HEAD n'avance jamais
-        # et l'app croit indéfiniment qu'une MAJ est disponible (version inchangée).
+        # Chemin RÉEL du dépôt sur l'hôte (passé via HOST_REPO_DIR=${PWD} dans le
+        # compose). On monte le dépôt au MÊME chemin dans le conteneur updater pour
+        # que `docker compose` (qui parle au démon de l'hôte) résolve correctement
+        # les volumes relatifs (./automate/...). Sinon les montages cassent et la
+        # MAJ échoue silencieusement (symptôme : bloque, version inchangée).
+        host_dir = os.environ.get("HOST_REPO_DIR") or REPO_DIR
         cmd = ("set -e; "
                "apk add --no-cache git docker-cli-compose >/dev/null 2>&1; "
-               "git config --global --add safe.directory /repo; "
-               "cd /repo; "
+               "git config --global --add safe.directory " + host_dir + "; "
+               "cd " + host_dir + "; "
                "git fetch --all --prune; "
                "git reset --hard @{u}; "
                "docker compose -f docker-compose.pi.yml pull; "
@@ -1082,8 +1084,8 @@ async def apply_update(user: dict = Depends(require_roles("super_admin"))):
         client.containers.run(
             UPDATER_IMAGE, ["sh", "-c", cmd], detach=True, remove=True,
             volumes={"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
-                     REPO_DIR: {"bind": "/repo", "mode": "rw"}},
-            working_dir="/repo")
+                     host_dir: {"bind": host_dir, "mode": "rw"}},
+            working_dir=host_dir)
         await db.app_meta.update_one({"_id": "ota"},
                                      {"$set": {"last_update_at": now_iso()}}, upsert=True)
         return {"ok": True, "message": "Mise à jour lancée : téléchargement de la nouvelle version, "
