@@ -1077,7 +1077,8 @@ async def apply_update(user: dict = Depends(require_roles("super_admin"))):
                "git fetch --all --prune; "
                "git reset --hard @{u}; "
                "docker compose -f docker-compose.pi.yml pull; "
-               "docker compose -f docker-compose.pi.yml up -d")
+               "docker compose -f docker-compose.pi.yml up -d; "
+               "docker compose -f docker-compose.pi.yml restart proxy")
         client.containers.run(
             UPDATER_IMAGE, ["sh", "-c", cmd], detach=True, remove=True,
             volumes={"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
