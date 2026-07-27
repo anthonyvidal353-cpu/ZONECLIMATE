@@ -109,3 +109,14 @@ backend/{tuya.py (cloud), tuya_local.py (LAN), server.py (~1695 lignes)}, fronte
 - ✅ Refactor : logique d'association extraite dans `_associate_device_by_code`, partagée par associate-qr (JWT web) et panel_associate (jeton). Aucune régression.
 - ✅ PANEL_TOKEN ajouté à backend/.env + docker-compose.pi.yml (env). VALIDÉ testing_agent iteration_29 (13/13, 100% backend : auth 401, 3 branches d'association, 404/400, régression associate-qr).
 - ⏭️ Phase 2 (À FAIRE) : firmware LVGL ESP32-S3 (projet PlatformIO/Arduino, pilote RGB + GT911) consommant ces API — NON testable en cloud, à flasher/valider sur la carte.
+
+## Panneau tactile ESP32-S3 — Phase 2 firmware — [2026-06]
+- ✅ Projet firmware complet créé : `/app/firmware/esp32s3-panel/` (PlatformIO, cible Waveshare ESP32-S3-Touch-LCD-4.3, 800×480, GT911, CH422G).
+  - `platformio.ini` : espressif32@6.5.0 (core Arduino 2.x), LVGL 8.4, Arduino_GFX, bb_captouch, ArduinoJson, ESP32_IO_Expander ; PSRAM OPI, flash 8MB.
+  - `src/board.cpp` : bring-up écran RGB (brochage Waveshare) + tactile GT911 (bb_captouch, SDA8/SCL9/INT4) + reset & rétroéclairage via CH422G + glue LVGL.
+  - `src/api.cpp` : client HTTP `/api/panel/*` avec en-tête `X-Panel-Token`.
+  - `src/ui.cpp` : écrans LVGL — choix du zoning (si plusieurs) + appairage (liste appareils non associés avec statut en ligne ✓, liste zones, « nouvelle zone », saisie manuelle du code au clavier tactile, bouton ASSOCIER).
+  - `src/config.h` : réglages installateur (WIFI_SSID/PASSWORD, BACKEND_URL, PANEL_TOKEN).
+  - `src/lv_conf.h`, `src/main.cpp`, `README.md` (build/flash + repli init Waveshare si écran noir).
+- Amélioration livrée : statut « en ligne ✓ / ⚠ » affiché par appareil dans la liste avant association (issu du champ catalog.online).
+- ⚠️ NON compilé/flashé par l'assistant (embarqué non exécutable en cloud). À valider sur la carte. La partie board.cpp (CH422G/pins) peut nécessiter l'init du démo Waveshare selon la révision ; api.cpp + ui.cpp restent réutilisables tels quels.
