@@ -120,3 +120,12 @@ backend/{tuya.py (cloud), tuya_local.py (LAN), server.py (~1695 lignes)}, fronte
   - `src/lv_conf.h`, `src/main.cpp`, `README.md` (build/flash + repli init Waveshare si écran noir).
 - Amélioration livrée : statut « en ligne ✓ / ⚠ » affiché par appareil dans la liste avant association (issu du champ catalog.online).
 - ⚠️ NON compilé/flashé par l'assistant (embarqué non exécutable en cloud). À valider sur la carte. La partie board.cpp (CH422G/pins) peut nécessiter l'init du démo Waveshare selon la révision ; api.cpp + ui.cpp restent réutilisables tels quels.
+
+## Accès hors-ligne + UX mobile + OTA progression — [2026-06]
+- ✅ Frontend rendu 100% hors-ligne : `public/index.html` — polices Google/Fontshare passées en NON bloquant (media=print + onload) et script `emergent-main.js` en `defer`. Cause du bug « page blanche sur 10.42.0.1 sans Internet » (les ressources externes bloquaient le rendu). Confirmé par l'utilisateur : l'app s'affiche maintenant hors-ligne via l'AP.
+- ✅ Portail captif (nginx-pi.conf) : page 200 STATIQUE (logo + bouton « Ouvrir ClimaZone » + instruction 10.42.0.1) au lieu de rediriger vers la SPA (que la mini-fenêtre captive ne sait pas exécuter → blanc). Sans auto-redirect JS.
+- ✅ OTA : `apply_update` ajoute `docker compose restart proxy` (recharge le nginx/portail captif à chaque mise à jour via le bouton, sans terminal).
+- ✅ Menu admin responsive (Home.jsx) : `flex-wrap` + largeur pleine + paddings réduits sur mobile → les 6 onglets passent sur 2 lignes (fini le scroll horizontal).
+- ✅ UpdateBanner.jsx : barre de progression réelle lors de « Installer la mise à jour ». Interroge /system/update-info en boucle (téléchargement → redémarrage détecté par échec de requête → terminé quand backend revient avec nouvelle version/update_available=false). 100% = « vous pouvez tester ». Note « ne testez pas avant 100% ». Timeout 5 min.
+- Rappel déploiement Pi : le correctif frontend nécessite rebuild GitHub Actions (~15 min) puis pull. Le bouton OTA in-app fait tout (git reset --hard + pull + up + restart proxy) SI le build Actions est terminé. La barre de progression n'apparaîtra qu'à partir de la MAJ SUIVANTE (elle fait partie de cette MAJ).
+- ⚠️ Auto-ouverture du portail captif : dépend du téléphone (certaines surcouches Android la bloquent). Repli fiable : navigateur → 10.42.0.1. Astuce : « oublier le réseau » puis reconnecter force la re-détection.

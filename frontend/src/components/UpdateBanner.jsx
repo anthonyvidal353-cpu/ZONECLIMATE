@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ArrowsClockwise, CircleNotch, DownloadSimple, CheckCircle } from "@phosphor-icons/react";
 import api, { formatApiErrorDetail } from "../lib/api";
@@ -8,6 +8,10 @@ export function UpdateBanner() {
   const [info, setInfo] = useState(null);
   const [checking, setChecking] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [phase, setPhase] = useState("");
+  const [done, setDone] = useState(false);
+  const timerRef = useRef(null);
 
   const load = async (notify) => {
     setChecking(true);
@@ -20,18 +24,56 @@ export function UpdateBanner() {
     } finally { setChecking(false); }
   };
   useEffect(() => { load(false); }, []);
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   // Masqué si la fonctionnalité est désactivée (ex: PC Windows) ou pas encore chargée.
   if (!info || !info.enabled) return null;
 
+  // Suit la progression réelle : on interroge le backend jusqu'à ce que la
+  // nouvelle version soit en ligne (téléchargement → redémarrage → terminé).
+  const runProgress = (before) => {
+    const start = Date.now();
+    const EST = 150000;        // durée estimée (barre monte jusqu'à 92 %)
+    let seenDown = false;
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(async () => {
+      const elapsed = Date.now() - start;
+      setProgress((p) => Math.min(92, Math.max(p, Math.round((elapsed / EST) * 92))));
+      try {
+        const d = await api.getUpdateInfo();
+        if (seenDown && (!d.update_available || (d.current_version && d.current_version !== before))) {
+          clearInterval(timerRef.current);
+          setProgress(100);
+          setPhase("Mise à jour terminée ✅ — vous pouvez tester.");
+          setDone(true);
+          setInfo(d);
+          setTimeout(() => { setApplying(false); setDone(false); setProgress(0); }, 6000);
+        } else if (!seenDown && elapsed > 12000) {
+          setPhase("Application des changements…");
+        }
+      } catch {
+        seenDown = true;
+        setPhase("Redémarrage de l'application…");
+      }
+      if (elapsed > 300000) {
+        clearInterval(timerRef.current);
+        setPhase("Cela prend plus de temps que prévu. Cliquez sur « Vérifier » dans un instant.");
+      }
+    }, 3000);
+  };
+
   const apply = async () => {
-    setApplying(true);
+    setApplying(true); setDone(false); setProgress(6);
+    setPhase("Téléchargement de la nouvelle version…");
+    const before = info?.current_version || "";
     try {
       const r = await api.applyUpdate();
       toast.success(r.message || "Mise à jour lancée. L'application va redémarrer.");
+      runProgress(before);
     } catch (e) {
+      setApplying(false); setProgress(0); setPhase("");
       toast.error(formatApiErrorDetail(e.response?.data?.detail));
-    } finally { setApplying(false); }
+    }
   };
 
   const up = info.update_available;
@@ -60,20 +102,40 @@ export function UpdateBanner() {
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <Button data-testid="update-check-btn" onClick={() => load(true)} disabled={checking}
-          variant="outline" className="rounded-full border-border/70 font-semibold h-9 text-xs">
-          {checking ? <CircleNotch size={14} className="animate-spin mr-1.5" /> : <ArrowsClockwise weight="bold" size={14} className="mr-1.5" />}
-          Vérifier
-        </Button>
-        {up && (
-          <Button data-testid="update-install-btn" onClick={apply} disabled={applying}
-            className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold h-9 text-xs">
-            {applying ? <CircleNotch size={14} className="animate-spin mr-1.5" /> : <DownloadSimple weight="bold" size={14} className="mr-1.5" />}
-            Installer la mise à jour
+      {applying ? (
+        <div className="w-full sm:w-80 shrink-0" data-testid="update-progress">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold" style={{ color: done ? "#16A34A" : "#7C3AED" }}>
+              {phase}
+            </span>
+            <span className="text-xs font-mono-num text-zinc-500" data-testid="update-progress-pct">{progress}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-zinc-200 overflow-hidden">
+            <div className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${progress}%`, background: done ? "#16A34A" : "#7C3AED" }} />
+          </div>
+          {!done && (
+            <p className="text-[11px] text-zinc-400 mt-1">
+              Ne testez pas tant que la barre n'est pas à 100 %.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 shrink-0">
+          <Button data-testid="update-check-btn" onClick={() => load(true)} disabled={checking}
+            variant="outline" className="rounded-full border-border/70 font-semibold h-9 text-xs">
+            {checking ? <CircleNotch size={14} className="animate-spin mr-1.5" /> : <ArrowsClockwise weight="bold" size={14} className="mr-1.5" />}
+            Vérifier
           </Button>
-        )}
-      </div>
+          {up && (
+            <Button data-testid="update-install-btn" onClick={apply}
+              className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold h-9 text-xs">
+              <DownloadSimple weight="bold" size={14} className="mr-1.5" />
+              Installer la mise à jour
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
