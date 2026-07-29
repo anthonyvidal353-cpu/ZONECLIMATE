@@ -16,7 +16,7 @@ REG_MODE = 0x0202
 REG_SETPOINT = 0x0203
 REG_FAN = 0x0204
 REG_ROOM_TEMP = 0x0318      # température ambiante intérieure
-REG_RETURN_AIR = 0xA647     # température de reprise d'air
+REG_RETURN_AIR = 0x031A     # température de reprise d'air
 REG_OUTDOOR = 0xA616        # température extérieure
 
 
