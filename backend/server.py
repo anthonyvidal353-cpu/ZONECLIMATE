@@ -1045,7 +1045,12 @@ async def update_info(user: dict = Depends(require_roles("super_admin", "moderat
     if not INAPP_UPDATE_ENABLED:
         return info
     try:
-        _git("fetch", "--quiet")
+        fetched = _git("fetch", "--quiet")
+        if fetched.returncode != 0:
+            info["detail"] = ("Impossible de vérifier les mises à jour : l'automate n'a pas accès à Internet. "
+                              "Connectez-le d'abord au Wi-Fi de la maison.")
+            info["check_failed"] = True
+            return info
         cur = _git("rev-parse", "--short", "HEAD")
         up = _git("rev-parse", "--short", "@{u}")
         if cur.returncode == 0 and up.returncode == 0:

@@ -111,16 +111,17 @@ export const WifiManager = ({ open, onOpenChange }) => {
             {selected && (
               <div data-testid="wifi-connect-form" className="space-y-2 border-t border-border/50 pt-3">
                 <p className="text-sm">Se connecter à <b>{selected.ssid}</b></p>
-                {selected.secured && (
-                  <Input
-                    data-testid="wifi-password-input"
-                    type="password"
-                    placeholder="Mot de passe du Wi-Fi"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                )}
-                <Button data-testid="wifi-connect-btn" onClick={connect} disabled={connecting || (selected.secured && !password)} className="w-full rounded-full bg-cool hover:bg-cool/90 font-semibold">
+                <Input
+                  data-testid="wifi-password-input"
+                  type="password"
+                  placeholder="Mot de passe du Wi-Fi"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !connecting) connect(); }}
+                  autoFocus
+                />
+                <p className="text-xs text-zinc-500">Laissez vide uniquement si le réseau est ouvert (sans mot de passe).</p>
+                <Button data-testid="wifi-connect-btn" onClick={connect} disabled={connecting} className="w-full rounded-full bg-cool hover:bg-cool/90 font-semibold">
                   {connecting ? <><Spinner size={16} className="animate-spin mr-2" /> Connexion…</> : "Connecter l'automate"}
                 </Button>
               </div>

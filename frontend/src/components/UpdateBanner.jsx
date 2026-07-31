@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowsClockwise, CircleNotch, DownloadSimple, CheckCircle } from "@phosphor-icons/react";
+import { ArrowsClockwise, CircleNotch, DownloadSimple, CheckCircle, WarningCircle } from "@phosphor-icons/react";
 import api, { formatApiErrorDetail } from "../lib/api";
 import { Button } from "./ui/button";
 
@@ -18,7 +18,10 @@ export function UpdateBanner() {
     try {
       const d = await api.getUpdateInfo();
       setInfo(d);
-      if (notify) toast(d.update_available ? "🔔 Mise à jour disponible !" : "Vous êtes déjà à jour ✅");
+      if (notify) {
+        if (d.check_failed) toast.error(d.detail || "Vérification impossible : l'automate n'a pas accès à Internet.");
+        else toast(d.update_available ? "🔔 Mise à jour disponible !" : "Vous êtes déjà à jour ✅");
+      }
     } catch {
       /* silencieux */
     } finally { setChecking(false); }
@@ -101,18 +104,21 @@ export function UpdateBanner() {
   };
 
   const up = info.update_available;
+  const failed = info.check_failed;
 
   return (
     <div data-testid="update-banner"
       className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 rounded-lg border px-5 py-3"
-      style={{ borderColor: up ? "rgba(124,58,237,0.35)" : "rgba(0,0,0,0.08)", background: up ? "rgba(124,58,237,0.06)" : "#FFFFFF" }}>
+      style={{ borderColor: failed ? "rgba(245,158,11,0.4)" : up ? "rgba(124,58,237,0.35)" : "rgba(0,0,0,0.08)", background: failed ? "rgba(245,158,11,0.06)" : up ? "rgba(124,58,237,0.06)" : "#FFFFFF" }}>
       <div className="flex items-center gap-3">
-        {up
+        {failed
+          ? <span className="w-9 h-9 rounded-full bg-amber-400/15 flex items-center justify-center shrink-0"><WarningCircle weight="bold" size={18} className="text-amber-500" /></span>
+          : up
           ? <span className="w-9 h-9 rounded-full bg-heat/15 flex items-center justify-center shrink-0"><DownloadSimple weight="bold" size={18} className="text-heat" /></span>
           : <span className="w-9 h-9 rounded-full bg-online/15 flex items-center justify-center shrink-0"><CheckCircle weight="fill" size={18} className="text-online" /></span>}
         <div className="min-w-0">
           <p className="font-semibold text-sm" data-testid="update-status-label">
-            {up ? "Mise à jour disponible" : "Application à jour"}
+            {failed ? "Vérification impossible" : up ? "Mise à jour disponible" : "Application à jour"}
           </p>
           <p className="text-xs text-zinc-500">
             Version : <span className="font-mono-num">{info.current_version}</span>
