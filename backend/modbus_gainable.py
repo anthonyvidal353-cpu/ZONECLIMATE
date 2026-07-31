@@ -15,8 +15,9 @@ REG_ONOFF = 0x0201
 REG_MODE = 0x0202
 REG_SETPOINT = 0x0203
 REG_FAN = 0x0204
-REG_ROOM_TEMP = 0x0318      # température ambiante intérieure
-REG_RETURN_AIR = 0xA647     # température de reprise d'air
+REG_ROOM_TEMP = 0x0318      # température ambiante de l'unité intérieure (air de reprise)
+REG_RETURN_AIR = 0x0318     # air de reprise = sonde d'ambiance de l'unité intérieure (0xA647 = registre de défauts, pas une température)
+REG_COIL = 0x031A           # température du tube central (batterie) — info
 REG_OUTDOOR = 0xA616        # température extérieure
 
 
