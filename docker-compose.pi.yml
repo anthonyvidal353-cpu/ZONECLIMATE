@@ -29,12 +29,15 @@ services:
     container_name: zoneclimate-backend
     restart: unless-stopped
     network_mode: host
+    # privileged + /dev partagé : accès au convertisseur USB-RS485 SANS le
+    # rendre obligatoire au démarrage (l'app démarre même clé débranchée, et
+    # voit la clé dès qu'on la branche à chaud). Boîtier local isolé → OK.
+    privileged: true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/repo
       - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
-    devices:
-      - "${RS485_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0"
+      - /dev:/dev
     group_add:
       - dialout
     environment:
