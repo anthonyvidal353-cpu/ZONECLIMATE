@@ -25,7 +25,7 @@ services:
 
   backend:
     image: ghcr.io/${GHCR_OWNER:-anthonyvidal353-cpu}/zoneclimate-backend:latest
-    pull_policy: always
+    pull_policy: missing
     container_name: zoneclimate-backend
     restart: unless-stopped
     network_mode: host
@@ -57,7 +57,7 @@ services:
 
   frontend:
     image: ghcr.io/${GHCR_OWNER:-anthonyvidal353-cpu}/zoneclimate-frontend:latest
-    pull_policy: always
+    pull_policy: missing
     container_name: zoneclimate-frontend
     restart: unless-stopped
     network_mode: host

@@ -113,6 +113,32 @@ ok "Nom réseau : http://${AUTOMATE_NAME}.local"
 say "Téléchargement et démarrage des conteneurs (aucune compilation)…"
 sudo docker compose -f docker-compose.pi.yml up -d
 
+# 5b) Service systemd : auto-démarrage + auto-réparation au boot (HORS-LIGNE) -
+# Recrée les conteneurs manquants à chaque démarrage SANS Internet
+# (pull_policy: missing → utilise les images déjà téléchargées).
+say "Installation du démarrage automatique (auto-réparation au boot)…"
+sudo tee /etc/systemd/system/zoneclimate.service >/dev/null <<UNIT
+[Unit]
+Description=ClimaZone (automate gainable) — démarrage auto
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=${APP_DIR}
+ExecStart=/usr/bin/docker compose -f docker-compose.pi.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.pi.yml stop
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl enable zoneclimate.service 2>/dev/null || true
+ok "Démarrage automatique activé : l'app remonte seule à chaque redémarrage, même sans Internet."
+
 echo
 PI_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 ok "============================================================"
