@@ -266,6 +266,8 @@ class System(BaseModel):
     gainable_return_temp: Optional[float] = None
     gainable_outdoor_temp: Optional[float] = None
     gainable_readings_at: Optional[str] = None
+    gainable_comm_ok: Optional[bool] = None      # état de la liaison Modbus (None = jamais testé)
+    gainable_comm_error: Optional[str] = None     # message si la communication échoue
     # Infos gainable lues via Tuya (LAN) — lecture seule, à titre indicatif
     gainable_tuya_dps: Optional[dict] = None
     gainable_tuya_at: Optional[str] = None
@@ -1376,11 +1378,20 @@ async def gainable_modbus_test(iid: str, user: dict = Depends(get_current_user))
             "gainable_room_temp": s.get("room"),
             "gainable_return_temp": s.get("return_air"),
             "gainable_outdoor_temp": s.get("outdoor"),
-            "gainable_readings_at": now_iso()}})
+            "gainable_readings_at": now_iso(),
+            "gainable_comm_ok": True,
+            "gainable_comm_error": None}})
         return {"ok": True, "room_temp": s.get("room"), "return_temp": s.get("return_air"),
                 "outdoor_temp": s.get("outdoor"), "port": port, "slave": slave}
     except Exception as e:  # noqa: BLE001
-        return {"ok": False, "error": f"{type(e).__name__}: {e}", "port": port, "slave": slave}
+        # Liaison KO → efface les mesures périmées (pas de fausse sécurité anti-gel).
+        await db.system.update_one({"installation_id": iid}, {"$set": {
+            "gainable_room_temp": None, "gainable_return_temp": None, "gainable_outdoor_temp": None,
+            "gainable_comm_ok": False,
+            "gainable_comm_error": "Communication gainable impossible — vérifiez le raccordement du câble RS485.",
+            "gainable_readings_at": now_iso()}})
+        return {"ok": False, "error": "Communication gainable impossible — vérifiez le raccordement du câble RS485.",
+                "detail": f"{type(e).__name__}: {e}", "port": port, "slave": slave}
 
 
 @api_router.post("/installations/{iid}/gainable/modbus/scan")
@@ -2156,9 +2167,21 @@ async def apply_local_control(iid: str, sys_state: dict, zones: list):
                 "gainable_room_temp": s.get("room"),
                 "gainable_return_temp": s.get("return_air"),
                 "gainable_outdoor_temp": s.get("outdoor"),
-                "gainable_readings_at": now_iso()}})
+                "gainable_readings_at": now_iso(),
+                "gainable_comm_ok": True,
+                "gainable_comm_error": None}})
         except Exception as e:  # noqa: BLE001
             logger.debug(f"Modbus gainable (lecture capteurs) ignoré (iid={iid}): {e}")
+            # Communication perdue (clé RS485 débranchée, câble coupé…) → on EFFACE
+            # les mesures périmées pour ne pas déclencher une fausse sécurité
+            # (ex. -100°C figé) et on prévient l'utilisateur.
+            await db.system.update_one({"installation_id": iid}, {"$set": {
+                "gainable_room_temp": None,
+                "gainable_return_temp": None,
+                "gainable_outdoor_temp": None,
+                "gainable_comm_ok": False,
+                "gainable_comm_error": "Communication gainable impossible — vérifiez le raccordement du câble RS485.",
+                "gainable_readings_at": now_iso()}})
     try:
         devs = await db.devices.find({"installation_id": iid, "tuya_id": {"$ne": None}}, {"_id": 0}).to_list(200)
         # --- Gainable ---
