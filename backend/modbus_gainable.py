@@ -16,12 +16,23 @@ REG_MODE = 0x0202
 REG_SETPOINT = 0x0203
 REG_FAN = 0x0204
 REG_ROOM_TEMP = 0x0318      # température ambiante intérieure
-REG_RETURN_AIR = 0x031A     # température de reprise d'air
+REG_RETURN_AIR = 0xA647     # température de reprise d'air
 REG_OUTDOOR = 0xA616        # température extérieure
 
 
 def _to_celsius(raw):
     return round((raw - 1000) / 10.0, 1)
+
+
+def _to_celsius_safe(raw):
+    """Convertit une lecture brute en °C, ou None si le capteur est invalide.
+    Valeur brute 0 (= -100,0°C) = capteur absent/non câblé ; hors plage plausible = None."""
+    if raw == 0:
+        return None
+    t = _to_celsius(raw)
+    if t <= -50 or t >= 100:
+        return None
+    return t
 
 # Mode : 1=Froid, 2=Déshu, 4=Chaud, 5=Auto
 MODE_MAP = {"froid": 1, "dehum": 2, "chaud": 4, "auto": 5}
@@ -84,7 +95,7 @@ def _read_sensors_sync(port, slave):
     try:
         for key, addr in (("room", REG_ROOM_TEMP), ("return_air", REG_RETURN_AIR), ("outdoor", REG_OUTDOOR)):
             rr = c.read_holding_registers(addr, count=1, device_id=slave)
-            out[key] = None if rr.isError() else _to_celsius(rr.registers[0])
+            out[key] = None if rr.isError() else _to_celsius_safe(rr.registers[0])
         return out
     finally:
         c.close()
