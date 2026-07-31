@@ -80,20 +80,52 @@ async def status(iface: str = None) -> dict:
 
 
 async def connect(ssid: str, password: str = "", iface: str = None) -> dict:
-    """Connecte l'interface maison au Wi-Fi donné."""
+    """Connecte l'interface maison au Wi-Fi donné.
+    Rescanne d'abord (nmcli refuse un SSID absent de son cache → "No network with SSID"),
+    puis tente sur l'interface maison ; en cas d'échec « SSID introuvable », réessaie
+    sans forcer l'interface (auto-sélection par NetworkManager)."""
     iface = iface or HOME_WIFI_IFACE
-    args = ["nmcli", "device", "wifi", "connect", ssid, "ifname", iface]
-    if password:
-        args += ["password", password]
+
+    async def _try(args):
+        try:
+            return await _run(args, timeout=50)
+        except FileNotFoundError:
+            return (127, "", "NetworkManager (nmcli) indisponible sur cet hôte.")
+        except Exception as e:  # noqa: BLE001
+            return (1, "", f"{type(e).__name__}: {e}")
+
+    # Rescan préalable pour peupler le cache nmcli (best-effort).
     try:
-        rc, out, err = await _run(args, timeout=50)
-    except FileNotFoundError:
-        return {"ok": False, "error": "NetworkManager (nmcli) indisponible sur cet hôte."}
-    except Exception as e:  # noqa: BLE001
-        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    if rc != 0:
+        await _run(["nmcli", "radio", "wifi", "on"], timeout=10)
+        await _run(["nmcli", "device", "wifi", "rescan", "ifname", iface], timeout=20)
+        await asyncio.sleep(4)
+    except Exception:  # noqa: BLE001
+        pass
+
+    base = ["nmcli", "device", "wifi", "connect", ssid]
+    pw = (["password", password] if password else [])
+
+    rc, out, err = await _try(base + ["ifname", iface] + pw)
+    msg = (err or out).strip()
+
+    # SSID introuvable sur l'interface forcée → rescan + tentative auto.
+    if rc != 0 and ("No network with SSID" in msg or "No Network with SSID" in msg or "not found" in msg.lower()):
+        try:
+            await _run(["nmcli", "device", "wifi", "rescan"], timeout=20)
+            await asyncio.sleep(5)
+        except Exception:  # noqa: BLE001
+            pass
+        rc, out, err = await _try(base + pw)  # laisse nmcli choisir l'interface
         msg = (err or out).strip()
+
+    if rc == 127:
+        return {"ok": False, "error": msg}
+    if rc != 0:
         if "Secrets were required" in msg or "802-11-wireless-security" in msg:
             msg = "Mot de passe Wi-Fi incorrect."
+        elif "No network with SSID" in msg or "No Network with SSID" in msg:
+            msg = (f"Réseau « {ssid} » introuvable au moment de la connexion. "
+                   "Rapprochez l'automate, rafraîchissez la liste puis réessayez "
+                   "(les points d'accès iPhone/5 GHz sont parfois instables).")
         return {"ok": False, "error": msg or "Connexion impossible"}
     return {"ok": True, "message": (out or "").strip() or f"Connecté à « {ssid} »"}
