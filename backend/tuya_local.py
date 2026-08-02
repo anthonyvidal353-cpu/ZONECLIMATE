@@ -50,10 +50,16 @@ async def fetch_local_keys(region: str, access_id: str, access_secret: str) -> l
     return await asyncio.to_thread(_fetch_local_keys_sync, region, access_id, access_secret)
 
 
-# ----------------------------- Découverte LAN (broadcast UDP) -----------------------------
-def _scan_lan_sync(timeout: int = 6) -> dict:
+# ----------------------------- Découverte LAN (broadcast UDP + scan actif) -----------------------------
+def _scan_lan_sync(timeout: int = 6, forcescan: bool = True) -> dict:
     # Retourne { gwId: {ip, version, ...} } pour les appareils Tuya vus sur le LAN.
-    devices = tinytuya.deviceScan(verbose=False, maxretry=timeout)
+    # forcescan=True : scan ACTIF du sous-réseau (sonde chaque IP) au lieu de la simple
+    # écoute passive des broadcasts (souvent ratés). Bien plus fiable.
+    try:
+        devices = tinytuya.deviceScan(verbose=False, maxretry=timeout, forcescan=forcescan)
+    except TypeError:
+        # anciennes versions de tinytuya sans l'argument forcescan
+        devices = tinytuya.deviceScan(verbose=False, maxretry=timeout)
     result = {}
     for info in (devices or {}).values():
         gwid = info.get("gwId") or info.get("id")

@@ -167,3 +167,13 @@ backend/{tuya.py (cloud), tuya_local.py (LAN), server.py (~1695 lignes)}, fronte
 - ✅ install-pi.sh : appelle enable-autoboot.sh en fin d'install (section 5c) → tous les futurs Pi ont le démarrage-auto sans intervention.
 - NB : réglage firmware/matériel = impossible à déclencher depuis le bouton de MAJ de l'app (conteneur sandboxé, risqué). Fait via script hôte uniquement.
 - One-liner fourni à l'utilisateur pour le Pi actuel (sans attendre le déploiement du script) : rpi-eeprom-update -a + réécriture config + --apply + reboot.
+
+## Fiabilisation découverte Tuya locale + saisie IP manuelle — [2026-08]
+- Contexte : scan Tuya (tinytuya deviceScan passif) renvoie "IP inconnue" même appareils sur le même réseau (isolation routeur / broadcast raté). Confirmé côté utilisateur (thermostats sur STARLINK + un appareil sur box Orange = tous "IP inconnue").
+- ✅ tuya_local._scan_lan_sync : ajout forcescan=True (scan ACTIF du sous-réseau au lieu d'écoute passive) + fallback TypeError pour vieilles versions tinytuya.
+- ✅ Backend PUT /admin/tuya/local/devices/{tuya_id} : accepte désormais ip + version manuels (en plus de included). Déclenche _refresh_one_status pour tester la connexion locale immédiatement.
+- ✅ Frontend LocalManager DeviceRow : champ "IP MANUELLE" (input) + select version (3.1/3.3/3.4/3.5) + bouton "Définir" ; handler setDeviceIp + api.localSetIp. Testé curl (ip enregistrée, ip_masked, version) + screenshot UI OK.
+- Rappel archi : pilotage local Tuya = Pi + appareils sur le MÊME réseau. Solution cible = thermostats sur l'AP du Pi (ZONECLIMATE, mode shared avec NAT internet). Appairage SmartLife une fois à l'atelier (internet via NAT du Pi), puis 100% local hors-ligne chez le client.
+- Association zone par QR = liée au tuya_id (conservée même si on change le Wi-Fi du thermostat via "Modifier le réseau Wi-Fi" dans SmartLife).
+- ⚠️ À DÉPLOYER : Save to GitHub + update.sh/docker compose pull sur le Pi pour activer scan actif + IP manuelle.
+- Rappel état : projet Tuya (access_id pkevat95mk48f3ruqpwp / region eu) était enregistré dans la base CLOUD (pas sur le Pi). Erreur Tuya 1114 = IP allowlist activée sur iot.tuya.com → à désactiver (IP Starlink dynamique). Gainable VALSON/TCL : communication + démarrage OK.

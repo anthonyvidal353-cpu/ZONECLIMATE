@@ -868,11 +868,26 @@ async def local_sync_keys(user: dict = Depends(require_roles("super_admin"))):
 
 @api_router.put("/admin/tuya/local/devices/{tuya_id}")
 async def local_set_included(tuya_id: str, payload: dict, user: dict = Depends(require_roles("super_admin"))):
-    """Inclure/exclure un appareil du système de zoning."""
-    res = await db.local_devices.update_one(
-        {"tuya_id": tuya_id}, {"$set": {"included": bool(payload.get("included"))}})
+    """Inclure/exclure un appareil du zoning, et/ou définir manuellement son IP et sa version
+    (secours quand le scan automatique ne trouve pas l'appareil)."""
+    updates = {}
+    if "included" in payload:
+        updates["included"] = bool(payload.get("included"))
+    if "ip" in payload:
+        ip = (payload.get("ip") or "").strip()
+        updates["ip"] = ip or None
+        updates["last_seen_at"] = now_iso()
+    if "version" in payload:
+        updates["version"] = str(payload.get("version") or "3.3")
+    if not updates:
+        raise HTTPException(400, "Rien à modifier")
+    res = await db.local_devices.update_one({"tuya_id": tuya_id}, {"$set": updates})
     if res.matched_count == 0:
         raise HTTPException(404, "Appareil local introuvable")
+    if updates.get("ip"):
+        d0 = await db.local_devices.find_one({"tuya_id": tuya_id})
+        if d0:
+            await _refresh_one_status(d0)   # teste tout de suite la connexion locale
     d = await db.local_devices.find_one({"tuya_id": tuya_id}, {"_id": 0})
     return public_local_device(d)
 

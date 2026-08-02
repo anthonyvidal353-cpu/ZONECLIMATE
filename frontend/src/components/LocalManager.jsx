@@ -56,8 +56,16 @@ function OnlineBadge({ online }) {
   return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 flex items-center gap-1">Statut inconnu</span>;
 }
 
-function DeviceRow({ d, onToggle, onDiag, diagging, toggling }) {
+function DeviceRow({ d, onToggle, onDiag, onSetIp, diagging, toggling }) {
   const meta = TYPE_META[d.type] || TYPE_META.autre;
+  const [ipDraft, setIpDraft] = useState("");
+  const [verDraft, setVerDraft] = useState(d.version || "3.3");
+  const [savingIp, setSavingIp] = useState(false);
+  const saveIp = async () => {
+    setSavingIp(true);
+    try { await onSetIp(d, ipDraft.trim(), verDraft); setIpDraft(""); }
+    finally { setSavingIp(false); }
+  };
   const { Icon } = meta;
   const mapped = d.dps_map && Object.keys(d.dps_map).length > 0;
   return (
@@ -85,6 +93,30 @@ function DeviceRow({ d, onToggle, onDiag, diagging, toggling }) {
           <span>Protocole v{d.version}</span>
           {d.project_name && <span>Projet : {d.project_name}</span>}
           <span>Vu : {fmtDate(d.last_seen_at)}</span>
+        </div>
+        <div data-testid={`local-manual-ip-${d.tuya_id}`} className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-border/70 bg-zinc-50 px-2.5 py-2 w-fit flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-zinc-500">IP manuelle</span>
+          <input
+            data-testid={`local-manual-ip-input-${d.tuya_id}`}
+            type="text" inputMode="decimal" placeholder={d.has_ip ? d.ip_masked : "192.168.x.x"}
+            value={ipDraft} onChange={(e) => setIpDraft(e.target.value)}
+            className="w-32 rounded-md border border-border/70 bg-white px-2 py-1 text-sm font-mono-num focus:outline-none focus:border-zinc-500"
+          />
+          <select
+            data-testid={`local-manual-ver-${d.tuya_id}`}
+            value={verDraft} onChange={(e) => setVerDraft(e.target.value)}
+            className="rounded-md border border-border/70 bg-white px-1.5 py-1 text-xs">
+            <option value="3.1">v3.1</option>
+            <option value="3.3">v3.3</option>
+            <option value="3.4">v3.4</option>
+            <option value="3.5">v3.5</option>
+          </select>
+          <button
+            data-testid={`local-manual-ip-save-${d.tuya_id}`}
+            onClick={saveIp} disabled={savingIp || !ipDraft.trim()}
+            className="rounded-md bg-zinc-800 text-white text-xs font-semibold px-2.5 py-1.5 hover:bg-zinc-700 disabled:opacity-50 transition-colors duration-150">
+            {savingIp ? "…" : "Définir"}
+          </button>
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
@@ -205,6 +237,18 @@ export function LocalManager() {
     } finally { setTogglingId(null); }
   };
 
+  const setDeviceIp = async (d, ip, version) => {
+    try {
+      const updated = await api.localSetIp(d.tuya_id, ip, version);
+      setDevices((prev) => prev.map((x) => x.tuya_id === d.tuya_id ? updated : x));
+      toast.success(updated.online
+        ? `${updated.name} : IP définie et en ligne ✅`
+        : `${updated.name} : IP enregistrée (mais pas de réponse locale — vérifiez l'IP/le réseau)`);
+    } catch (e) {
+      toast.error(formatApiErrorDetail(e.response?.data?.detail));
+    }
+  };
+
   const included = devices.filter((d) => d.included);
   const others = devices.filter((d) => !d.included);
   const diagFields = diag ? (MAP_FIELDS[diag.device.type] || MAP_FIELDS.thermostat) : [];
@@ -265,7 +309,7 @@ export function LocalManager() {
               Appareils du système ({included.length})
             </p>
             {included.map((d) => (
-              <DeviceRow key={d.tuya_id} d={d} onToggle={toggleInclude} onDiag={runDiag}
+              <DeviceRow key={d.tuya_id} d={d} onToggle={toggleInclude} onDiag={runDiag} onSetIp={setDeviceIp}
                 diagging={diagId === d.tuya_id} toggling={togglingId === d.tuya_id} />
             ))}
           </div>
@@ -278,7 +322,7 @@ export function LocalManager() {
             </p>
             {others.map((d) => (
               <div key={d.tuya_id} className="opacity-70">
-                <DeviceRow d={d} onToggle={toggleInclude} onDiag={runDiag}
+                <DeviceRow d={d} onToggle={toggleInclude} onDiag={runDiag} onSetIp={setDeviceIp}
                   diagging={diagId === d.tuya_id} toggling={togglingId === d.tuya_id} />
               </div>
             ))}
