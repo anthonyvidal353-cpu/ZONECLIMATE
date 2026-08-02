@@ -298,6 +298,7 @@ class Zone(BaseModel):
     valves: int = 1          # nombre de vannes/registres pilotés par le thermostat (1 à 4)
     proportional: bool = False   # True = vanne modulante (0–100 %), False = tout-ou-rien
     order: int = 0
+    manual_temp: Optional[float] = None   # température d'ambiance FIXE (test/dépannage) — ignore la mesure/simulation si définie
 
 
 class Device(BaseModel):
@@ -341,6 +342,7 @@ class ZoneUpdate(BaseModel):
     name: Optional[str] = None
     valves: Optional[int] = None
     proportional: Optional[bool] = None
+    manual_temp: Optional[float] = None
 
 
 class SystemUpdate(BaseModel):
@@ -1474,7 +1476,13 @@ async def list_zones(iid: str, user: dict = Depends(get_current_user)):
 @api_router.put("/installations/{iid}/zones/{zone_id}")
 async def update_zone(iid: str, zone_id: str, payload: ZoneUpdate, user: dict = Depends(get_current_user)):
     await get_installation_for(user, iid, write=True)
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    raw = payload.model_dump(exclude_unset=True)
+    updates = {}
+    for k, v in raw.items():
+        if k == "manual_temp":
+            updates[k] = v            # peut être None = désactiver la température de test
+        elif v is not None:
+            updates[k] = v
     if "valves" in updates:
         updates["valves"] = min(4, max(1, int(updates["valves"])))
     if not updates:
@@ -1974,6 +1982,10 @@ async def _run_regulation(iid: str, real: Optional[bool] = None):
     zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).to_list(200)
     if real:
         await _read_real_temps(iid, zones)
+    # Température d'ambiance FIXE (test/dépannage) : prioritaire sur mesure et simulation.
+    for z in zones:
+        if z.get("manual_temp") is not None:
+            z["current_temp"] = float(z["manual_temp"])
     now = datetime.now(timezone.utc)
     heat = system.mode == "chaud"
 
@@ -2073,6 +2085,12 @@ async def _run_regulation(iid: str, real: Optional[bool] = None):
             # Mode réel : la température vient des thermostats (déjà lue), pas de simulation
             await db.zones.update_one({"id": z["id"]}, {"$set": {
                 "current_temp": round(z["current_temp"], 1), "damper_open": damper, "damper_opening": opening}})
+            continue
+
+        if z.get("manual_temp") is not None:
+            # Température FIXE (test) : on ne simule pas, on garde la valeur imposée.
+            await db.zones.update_one({"id": z["id"]}, {"$set": {
+                "current_temp": round(float(z["manual_temp"]), 1), "damper_open": damper, "damper_opening": opening}})
             continue
 
         cur = z["current_temp"]
