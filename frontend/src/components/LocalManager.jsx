@@ -58,9 +58,10 @@ function OnlineBadge({ online }) {
 
 function DeviceRow({ d, onToggle, onDiag, onSetIp, diagging, toggling }) {
   const meta = TYPE_META[d.type] || TYPE_META.autre;
-  const [ipDraft, setIpDraft] = useState("");
+  const [ipDraft, setIpDraft] = useState(d.ip || "");
   const [verDraft, setVerDraft] = useState(d.version || "3.3");
   const [savingIp, setSavingIp] = useState(false);
+  useEffect(() => { setIpDraft(d.ip || ""); setVerDraft(d.version || "3.3"); }, [d.ip, d.version]);
   const saveIp = async () => {
     setSavingIp(true);
     try { await onSetIp(d, ipDraft.trim(), verDraft); setIpDraft(""); }
@@ -82,7 +83,7 @@ function DeviceRow({ d, onToggle, onDiag, onSetIp, diagging, toggling }) {
             ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-online/15 text-online flex items-center gap-1"><Key weight="fill" size={11} /> Clé OK</span>
             : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-offline/15 text-offline flex items-center gap-1"><XCircle weight="fill" size={11} /> Sans clé</span>}
           {d.has_ip
-            ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 flex items-center gap-1">{d.ip_masked}</span>
+            ? <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-online/15 text-online flex items-center gap-1 font-mono-num" data-testid={`local-ip-badge-${d.tuya_id}`}><WifiHigh weight="fill" size={11} /> {d.ip}</span>
             : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">IP inconnue</span>}
           {d.included && (mapped
             ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cool/15 text-cool flex items-center gap-1"><Sliders weight="fill" size={11} /> DPS configuré</span>
@@ -94,18 +95,18 @@ function DeviceRow({ d, onToggle, onDiag, onSetIp, diagging, toggling }) {
           {d.project_name && <span>Projet : {d.project_name}</span>}
           <span>Vu : {fmtDate(d.last_seen_at)}</span>
         </div>
-        <div data-testid={`local-manual-ip-${d.tuya_id}`} className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-border/70 bg-zinc-50 px-2.5 py-2 w-fit flex-wrap">
-          <span className="text-[10px] uppercase tracking-wider text-zinc-500">IP manuelle</span>
+        <div data-testid={`local-manual-ip-${d.tuya_id}`} className="mt-3 flex items-center gap-2 rounded-xl border-2 border-heat/40 bg-heat/5 px-3 py-2.5 w-fit flex-wrap">
+          <span className="text-xs font-bold uppercase tracking-wider text-heat">Adresse IP</span>
           <input
             data-testid={`local-manual-ip-input-${d.tuya_id}`}
-            type="text" inputMode="decimal" placeholder={d.has_ip ? d.ip_masked : "192.168.x.x"}
+            type="text" inputMode="decimal" placeholder="192.168.x.x"
             value={ipDraft} onChange={(e) => setIpDraft(e.target.value)}
-            className="w-32 rounded-md border border-border/70 bg-white px-2 py-1 text-sm font-mono-num focus:outline-none focus:border-zinc-500"
+            className="w-40 rounded-md border border-heat/40 bg-white px-2.5 py-1.5 text-base font-mono-num font-semibold text-zinc-800 focus:outline-none focus:border-heat"
           />
           <select
             data-testid={`local-manual-ver-${d.tuya_id}`}
             value={verDraft} onChange={(e) => setVerDraft(e.target.value)}
-            className="rounded-md border border-border/70 bg-white px-1.5 py-1 text-xs">
+            className="rounded-md border border-heat/40 bg-white px-2 py-1.5 text-sm">
             <option value="3.1">v3.1</option>
             <option value="3.3">v3.3</option>
             <option value="3.4">v3.4</option>
@@ -114,7 +115,7 @@ function DeviceRow({ d, onToggle, onDiag, onSetIp, diagging, toggling }) {
           <button
             data-testid={`local-manual-ip-save-${d.tuya_id}`}
             onClick={saveIp} disabled={savingIp || !ipDraft.trim()}
-            className="rounded-md bg-zinc-800 text-white text-xs font-semibold px-2.5 py-1.5 hover:bg-zinc-700 disabled:opacity-50 transition-colors duration-150">
+            className="rounded-md bg-heat text-white text-sm font-bold px-3.5 py-1.5 hover:bg-heat-soft disabled:opacity-50 transition-colors duration-150">
             {savingIp ? "…" : "Définir"}
           </button>
         </div>

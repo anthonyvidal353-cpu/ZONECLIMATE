@@ -813,6 +813,7 @@ def public_local_device(d: dict) -> dict:
         "included": d.get("included", False),
         "product_name": d.get("product_name"),
         "version": d.get("version"),
+        "ip": ip,
         "ip_masked": ip_masked,
         "has_ip": bool(ip),
         "has_key": bool(d.get("local_key_enc")),
