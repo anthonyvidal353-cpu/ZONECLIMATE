@@ -139,6 +139,12 @@ sudo systemctl daemon-reload
 sudo systemctl enable zoneclimate.service 2>/dev/null || true
 ok "Démarrage automatique activé : l'app remonte seule à chaque redémarrage, même sans Internet."
 
+# 5c) Firmware Pi 5 : démarrage automatique après une coupure de courant --------
+if [ -f "${APP_DIR}/automate/enable-autoboot.sh" ]; then
+  say "Réglage du démarrage auto après coupure de courant (firmware Pi 5)…"
+  sudo bash "${APP_DIR}/automate/enable-autoboot.sh" || true
+fi
+
 echo
 PI_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 ok "============================================================"

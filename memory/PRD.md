@@ -160,3 +160,10 @@ backend/{tuya.py (cloud), tuya_local.py (LAN), server.py (~1695 lignes)}, fronte
 - Note : unit_setpoint peut valoir 0 si les consignes de zone sont à 5°C (min - offset 5), borné à 16°C à l'envoi Modbus (build_commands). Pas un bug.
 - ⚠️ RAPPEL DÉPLOIEMENT : ces ajouts (manual_temp + effacement mesures périmées sur perte comm Modbus + message "Communication gainable impossible") sont dans le CODE, à déployer via Save to GitHub + update.sh sur le Pi.
 - État Pi utilisateur : a déjà reçu les correctifs Wi-Fi (mot de passe toujours visible) + OTA hors-ligne (bandeau amber) + Modbus reprise d'air 0x0318. Communication Modbus avec le gainable VALSON/TCL CONFIRMÉE OK (test lit les vraies températures). Reste : le gainable démarre quand une zone appelle (validé en logique).
+
+## Démarrage auto Pi 5 après coupure (firmware EEPROM) — [2026-08]
+- Cause : Pi 5 ne redémarre pas seul après coupure si WAIT_FOR_POWER_BUTTON=1 (ou firmware ancien). Réglage déterminant = WAIT_FOR_POWER_BUTTON=0 (confirmé doc officielle Raspberry). POWER_OFF_ON_HALT=0 aussi.
+- ✅ Créé automate/enable-autoboot.sh : rpi-eeprom-update -a + upsert WAIT_FOR_POWER_BUTTON=0 & POWER_OFF_ON_HALT=0 via rpi-eeprom-config --apply (non-interactif, sans nano).
+- ✅ install-pi.sh : appelle enable-autoboot.sh en fin d'install (section 5c) → tous les futurs Pi ont le démarrage-auto sans intervention.
+- NB : réglage firmware/matériel = impossible à déclencher depuis le bouton de MAJ de l'app (conteneur sandboxé, risqué). Fait via script hôte uniquement.
+- One-liner fourni à l'utilisateur pour le Pi actuel (sans attendre le déploiement du script) : rpi-eeprom-update -a + réécriture config + --apply + reboot.
