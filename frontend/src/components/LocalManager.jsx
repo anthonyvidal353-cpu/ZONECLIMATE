@@ -61,11 +61,36 @@ function DeviceRow({ d, onToggle, onDiag, onSetIp, diagging, toggling }) {
   const [ipDraft, setIpDraft] = useState(d.ip || "");
   const [verDraft, setVerDraft] = useState(d.version || "3.3");
   const [savingIp, setSavingIp] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testMsg, setTestMsg] = useState(null);
   useEffect(() => { setIpDraft(d.ip || ""); setVerDraft(d.version || "3.3"); }, [d.ip, d.version]);
   const saveIp = async () => {
     setSavingIp(true);
-    try { await onSetIp(d, ipDraft.trim(), verDraft); setIpDraft(""); }
+    setTestMsg(null);
+    try { await onSetIp(d, ipDraft.trim(), verDraft); }
     finally { setSavingIp(false); }
+  };
+  const runTest = async () => {
+    setTesting(true);
+    setTestMsg(null);
+    try {
+      const res = await api.localTest(d.tuya_id);
+      if (res.ok) { setTestMsg({ ok: true, text: "Connexion réussie — appareil joignable en local ✅" }); toast.success("Thermostat joignable !"); }
+      else {
+        const raw = String(res.error || "");
+        let hint = raw;
+        if (/timeout|timed out|refused|unreachable|no route|host/i.test(raw))
+          hint = "Injoignable sur le réseau : l'automate n'atteint pas cette IP. Le thermostat et l'automate ne sont probablement PAS sur le même réseau Wi-Fi, ou la box isole les appareils.";
+        else if (/key|decrypt|hmac|payload|invalid/i.test(raw))
+          hint = "Appareil trouvé mais clé locale incorrecte : re-synchronisez les clés (le thermostat a peut-être été ré-appairé sur Tuya).";
+        else if (/version/i.test(raw))
+          hint = "Mauvaise version de protocole : essayez v3.3, puis v3.4, puis v3.5.";
+        setTestMsg({ ok: false, text: hint, raw });
+        toast.error("Hors ligne — voir le détail sous le bouton");
+      }
+    } catch (e) {
+      setTestMsg({ ok: false, text: formatApiErrorDetail(e.response?.data?.detail) || "Test impossible (l'automate n'est pas sur le réseau des appareils)." });
+    } finally { setTesting(false); }
   };
   const { Icon } = meta;
   const mapped = d.dps_map && Object.keys(d.dps_map).length > 0;
@@ -118,7 +143,20 @@ function DeviceRow({ d, onToggle, onDiag, onSetIp, diagging, toggling }) {
             className="rounded-md bg-heat text-white text-sm font-bold px-3.5 py-1.5 hover:bg-heat-soft disabled:opacity-50 transition-colors duration-150">
             {savingIp ? "…" : "Définir"}
           </button>
+          <button
+            data-testid={`local-manual-ip-test-${d.tuya_id}`}
+            onClick={runTest} disabled={testing || !d.has_ip}
+            className="rounded-md border-2 border-heat/50 text-heat text-sm font-bold px-3.5 py-1 hover:bg-heat/10 disabled:opacity-50 transition-colors duration-150">
+            {testing ? "Test…" : "Tester"}
+          </button>
         </div>
+        {testMsg && (
+          <div data-testid={`local-manual-ip-testmsg-${d.tuya_id}`}
+            className={`mt-2 text-xs rounded-md px-3 py-2 w-fit max-w-lg ${testMsg.ok ? "bg-online/10 text-online" : "bg-offline/10 text-offline"}`}>
+            {testMsg.text}
+            {testMsg.raw && <span className="block mt-1 text-[10px] opacity-70 font-mono-num">détail : {testMsg.raw}</span>}
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
         {d.included && (
