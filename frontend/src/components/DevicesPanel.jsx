@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { WifiHigh, WifiSlash, BatteryMedium, BatteryFull, BatteryLow, Wind, Thermometer, ArrowsClockwise, QrCode, Trash } from "@phosphor-icons/react";
+import { useState, useEffect } from "react";
+import { WifiHigh, WifiSlash, BatteryMedium, BatteryFull, BatteryLow, Wind, Thermometer, ArrowsClockwise, QrCode, Trash, LinkSimple, CircleNotch } from "@phosphor-icons/react";
 import { QRCodeSVG } from "qrcode.react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import api, { formatApiErrorDetail } from "../lib/api";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import {
@@ -15,10 +17,44 @@ const BatteryIcon = ({ level }) => {
   return <BatteryLow weight="duotone" size={16} className="text-offline" />;
 };
 
-export const DevicesPanel = ({ devices, onSync, onDelete, syncing, canWrite = true }) => {
+export const DevicesPanel = ({ devices, onSync, onDelete, syncing, canWrite = true, iid, zones = [], onAssociated }) => {
   const [qrDevice, setQrDevice] = useState(null);
   const [toDelete, setToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Association manuelle appareil (catalogue) -> zone
+  const [catalog, setCatalog] = useState([]);
+  const [loadingCat, setLoadingCat] = useState(false);
+  const [pickCode, setPickCode] = useState("");
+  const [pickZone, setPickZone] = useState("");
+  const [associating, setAssociating] = useState(false);
+
+  const loadCatalog = async () => {
+    setLoadingCat(true);
+    try { setCatalog(await api.listCatalog()); }
+    catch { /* silencieux : catalogue peut être vide */ }
+    finally { setLoadingCat(false); }
+  };
+  useEffect(() => { if (canWrite && iid) loadCatalog(); }, [canWrite, iid]);
+
+  const available = catalog.filter((c) => !c.assigned);
+
+  const associate = async () => {
+    if (!pickCode) return;
+    const item = catalog.find((c) => c.code === pickCode);
+    const isGainable = item?.category === "gainable";
+    if (!isGainable && !pickZone) { toast.error("Choisissez une zone pour ce thermostat"); return; }
+    setAssociating(true);
+    try {
+      await api.associateQR(iid, { code: pickCode, zone_id: isGainable ? undefined : pickZone });
+      toast.success(`${item?.name || "Appareil"} associé${isGainable ? " (gainable → zone maître)" : ""} ✅`);
+      setPickCode(""); setPickZone("");
+      await loadCatalog();
+      onAssociated?.();
+    } catch (e) {
+      toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Association impossible");
+    } finally { setAssociating(false); }
+  };
 
   const confirmDelete = async () => {
     if (!toDelete) return;
@@ -50,6 +86,73 @@ export const DevicesPanel = ({ devices, onSync, onDelete, syncing, canWrite = tr
           </Button>
         )}
       </div>
+
+      {canWrite && iid && (
+        <div className="p-6 border-b border-border/50 bg-heat/5" data-testid="associate-panel">
+          <div className="flex items-center gap-2 mb-1">
+            <LinkSimple weight="bold" size={18} className="text-heat" />
+            <h3 className="font-display text-lg font-bold tracking-tight">Associer un appareil à une zone</h3>
+          </div>
+          <p className="text-xs text-zinc-500 mb-4 max-w-2xl">
+            Choisissez un thermostat (ou le gainable) puis la zone qu'il pilote. C'est ce lien qui permet à l'automate
+            de lire la vraie température de la zone et d'y envoyer les commandes.
+          </p>
+
+          {loadingCat ? (
+            <div className="flex items-center gap-2 text-sm text-zinc-500"><CircleNotch size={16} className="animate-spin" /> Chargement…</div>
+          ) : available.length === 0 ? (
+            <p className="text-sm text-zinc-500" data-testid="associate-empty">
+              Aucun appareil disponible à associer. Vérifiez que vos appareils sont bien « inclus » dans <strong>Paramètres → Pilotage local</strong> et présents dans le <strong>Catalogue QR</strong>.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-500">Appareil</label>
+                <select
+                  data-testid="associate-device-select"
+                  value={pickCode}
+                  onChange={(e) => setPickCode(e.target.value)}
+                  className="rounded-md border border-heat/40 bg-white px-3 py-2 text-sm min-w-[220px] focus:outline-none focus:border-heat"
+                >
+                  <option value="">— Choisir un appareil —</option>
+                  {available.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name} · {c.category === "gainable" ? "Gainable" : "Thermostat"} {c.online ? "" : "(hors ligne)"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-500">Zone</label>
+                <select
+                  data-testid="associate-zone-select"
+                  value={pickZone}
+                  onChange={(e) => setPickZone(e.target.value)}
+                  disabled={catalog.find((c) => c.code === pickCode)?.category === "gainable"}
+                  className="rounded-md border border-heat/40 bg-white px-3 py-2 text-sm min-w-[200px] focus:outline-none focus:border-heat disabled:opacity-50"
+                >
+                  <option value="">— Choisir une zone —</option>
+                  {zones.map((z) => (
+                    <option key={z.id} value={z.id}>{z.name}{z.is_master ? " (Maître)" : ""}</option>
+                  ))}
+                </select>
+              </div>
+              <Button
+                data-testid="associate-confirm-btn"
+                onClick={associate}
+                disabled={associating || !pickCode}
+                className="rounded-full bg-heat text-white hover:bg-heat-soft font-semibold disabled:opacity-40"
+              >
+                {associating ? <CircleNotch size={16} className="animate-spin mr-2" /> : <LinkSimple weight="bold" size={16} className="mr-2" />}
+                Associer
+              </Button>
+            </div>
+          )}
+          {catalog.find((c) => c.code === pickCode)?.category === "gainable" && (
+            <p className="text-[11px] text-zinc-500 mt-2">Le gainable est automatiquement rattaché à la zone maître.</p>
+          )}
+        </div>
+      )}
 
       <div className="divide-y divide-border/40">
         {devices.map((d, i) => (

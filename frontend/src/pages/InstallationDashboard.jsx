@@ -310,7 +310,7 @@ export default function InstallationDashboard() {
               }}
             />
           )}
-          <DevicesPanel devices={devices} onSync={syncDevices} onDelete={deleteDevice} syncing={syncing} canWrite={canWrite} />
+          <DevicesPanel devices={devices} onSync={syncDevices} onDelete={deleteDevice} syncing={syncing} canWrite={canWrite} iid={iid} zones={zones} onAssociated={load} />
         </div>
       )}
       {tab === "schedule" && <SchedulePanel zones={zones} slots={slots} onCreate={createSlot} onDelete={deleteSlot} canWrite={canWrite} />}
