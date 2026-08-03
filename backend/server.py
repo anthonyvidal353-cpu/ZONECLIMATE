@@ -27,6 +27,7 @@ import tuya
 import tuya_local
 import modbus_gainable
 import wifi_manager
+import rf_manager
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -938,6 +939,21 @@ async def local_test(payload: dict, user: dict = Depends(require_roles("super_ad
                                       {"$set": {"last_seen_at": now_iso(), "online": True,
                                                 "last_status_at": now_iso()}})
     return {"ok": True, "dps": status.get("dps", status)}
+
+
+# ----------------------------- Capture RF 868 MHz (RTL-SDR) -----------------------------
+@api_router.get("/admin/rf/status")
+async def rf_get_status(user: dict = Depends(require_roles("super_admin"))):
+    return await rf_manager.rf_status()
+
+
+@api_router.post("/admin/rf/capture")
+async def rf_capture(payload: dict, user: dict = Depends(require_roles("super_admin"))):
+    freq = str(payload.get("freq") or rf_manager.DEFAULT_FREQ)
+    duration = int(payload.get("duration") or 20)
+    analyze = bool(payload.get("analyze"))
+    return await rf_manager.capture(freq=freq, duration=duration, analyze=analyze)
+
 
 
 @api_router.put("/admin/tuya/local/devices/{tuya_id}/dps-map")

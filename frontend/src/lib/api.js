@@ -58,6 +58,9 @@ export const api = {
   localSetIp: (tuya_id, ip, version) => http.put(`/admin/tuya/local/devices/${tuya_id}`, { ip, version }).then((r) => r.data),
   localSetDpsMap: (tuya_id, dps_map) => http.put(`/admin/tuya/local/devices/${tuya_id}/dps-map`, { dps_map }).then((r) => r.data),
   localRefreshStatus: () => http.post("/admin/tuya/local/refresh-status").then((r) => r.data),
+  // Capture RF 868 MHz (RTL-SDR)
+  rfStatus: () => http.get("/admin/rf/status").then((r) => r.data),
+  rfCapture: (data) => http.post("/admin/rf/capture", data).then((r) => r.data),
   getUpdateInfo: () => http.get("/system/update-info").then((r) => r.data),
   applyUpdate: () => http.post("/system/update").then((r) => r.data),
   // Catalogue QR (admin) + association par QR

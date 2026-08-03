@@ -9,6 +9,7 @@ import { AppShell } from "../components/AppShell";
 import { CreateInstallationDialog } from "../components/CreateInstallationDialog";
 import { TuyaManager } from "../components/TuyaManager";
 import { LocalManager } from "../components/LocalManager";
+import { RFCaptureManager } from "../components/RFCaptureManager";
 import { RegulationJournal } from "../components/RegulationJournal";
 import { CatalogManager } from "../components/CatalogManager";import { Button } from "../components/ui/button";
 import { UpdateBanner } from "../components/UpdateBanner";
@@ -318,7 +319,7 @@ export default function Home() {
 
       {user.role === "super_admin" && tab === "backup" && <BackupManager />}
 
-      {user.role === "super_admin" && tab === "tuya" && <><TuyaManager /><LocalManager /></>}
+      {user.role === "super_admin" && tab === "tuya" && <><TuyaManager /><LocalManager /><RFCaptureManager /></>}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent className="bg-white border-border" data-testid="delete-confirm-dialog">

@@ -103,10 +103,13 @@ AUTOMATE_NAME="$(echo "${AUTOMATE_NAME:-$DEFAULT_HOST}" | tr '[:upper:] ' '[:low
 say "Configuration du nom réseau « ${AUTOMATE_NAME}.local »…"
 sudo hostnamectl set-hostname "${AUTOMATE_NAME}" 2>/dev/null || true
 sudo sed -i "s/^127.0.1.1.*/127.0.1.1\t${AUTOMATE_NAME}/" /etc/hosts 2>/dev/null || \
-  echo "127.0.1.1	${AUTOMATE_NAME}" | sudo tee -a /etc/hosts >/dev/null || true
+  echo "127.0.1.1       ${AUTOMATE_NAME}" | sudo tee -a /etc/hosts >/dev/null || true
 sudo apt-get install -y avahi-daemon >/dev/null 2>&1 || true
 sudo systemctl enable --now avahi-daemon 2>/dev/null || true
 sudo systemctl restart avahi-daemon 2>/dev/null || true
+# Outils RF 868 MHz (clé RTL-SDR) pour la capture des thermostats E-TOP
+sudo apt-get install -y rtl-433 rtl-sdr >/dev/null 2>&1 || true
+ok "Outils RF installés (rtl_433 / rtl-sdr)"
 ok "Nom réseau : http://${AUTOMATE_NAME}.local"
 
 # 5) Démarrage de l'application (téléchargement des images pré-construites) --
