@@ -837,7 +837,8 @@ async def local_sync_keys(user: dict = Depends(require_roles("super_admin"))):
             devices = await tuya_local.fetch_local_keys(
                 p["region"], p["access_id"], tuya.decrypt_secret(p["access_secret_enc"]))
         except Exception as e:  # noqa: BLE001
-            errors.append(f"{p['name']}: {type(e).__name__}")
+            msg = str(e).strip() or type(e).__name__
+            errors.append(f"{p['name']}: {msg[:180]}")
             continue
         for d in devices:
             if not d.get("tuya_id") or not d.get("local_key"):
