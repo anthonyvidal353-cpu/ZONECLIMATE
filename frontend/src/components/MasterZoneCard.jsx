@@ -5,6 +5,7 @@ import {
 } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ZoneIcon } from "../lib/icons";
+import { fmtTemp } from "../lib/utils";
 import { Switch } from "./ui/switch";
 
 const FAN_OPTIONS = [
@@ -20,7 +21,7 @@ const SEVERITY = {
   critical: { color: "#EF4444", bg: "rgba(239,68,68,0.12)", Icon: WarningCircle, label: "Critique" },
 };
 
-export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoint, onRename, onDiagnostic, onToggle, onValves, onManualTemp, canWrite = true, diagnosing }) => {
+export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoint, onRename, onDiagnostic, onToggle, onValves, canWrite = true, diagnosing }) => {
   const heat = system.mode === "chaud";
   const accent = heat ? "#7C3AED" : "#3B82F6";
   const on = system.power;
@@ -28,7 +29,6 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(zone.name);
-  const [tempDraft, setTempDraft] = useState(zone.manual_temp != null ? String(zone.manual_temp) : "");
 
   const saveName = () => {
     const v = draft.trim();
@@ -140,37 +140,9 @@ export const MasterZoneCard = ({ zone, system, onSystem, onMasterPower, onSetpoi
           <div className="flex items-end justify-between">
             <div>
               <p className="overline text-zinc-500">Température actuelle</p>
-              <div className="font-mono-num text-5xl md:text-6xl font-semibold leading-none mt-1" style={{ color: on ? "#3F3F46" : "#71717A" }}>
-                {zone.current_temp.toFixed(1)}<span className="text-2xl text-zinc-500">°</span>
+              <div className="font-mono-num text-5xl md:text-6xl font-semibold leading-none mt-1" style={{ color: on ? "#3F3F46" : "#71717A" }} data-testid="master-current-temp">
+                {fmtTemp(zone.current_temp)}<span className="text-2xl text-zinc-500">°</span>
               </div>
-              {canWrite && onManualTemp && (
-                <div data-testid="master-manual-temp" className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-border/70 bg-zinc-50 px-2.5 py-1.5 w-fit">
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-0.5">Temp. de test</span>
-                  <input
-                    data-testid="master-manual-temp-input"
-                    type="number" step="0.5" placeholder="auto"
-                    value={tempDraft}
-                    onChange={(e) => setTempDraft(e.target.value)}
-                    className="w-16 rounded-md border border-border/70 bg-white px-2 py-1 text-sm font-mono-num focus:outline-none focus:border-zinc-500"
-                  />
-                  <button
-                    data-testid="master-manual-temp-set"
-                    onClick={() => onManualTemp(zone.id, tempDraft === "" ? null : Number(tempDraft))}
-                    className="rounded-md bg-zinc-800 text-white text-xs font-semibold px-2.5 py-1.5 hover:bg-zinc-700 transition-colors duration-150"
-                  >
-                    Fixer
-                  </button>
-                  {zone.manual_temp != null && (
-                    <button
-                      data-testid="master-manual-temp-clear"
-                      onClick={() => { setTempDraft(""); onManualTemp(zone.id, null); }}
-                      className="rounded-md border border-border/70 text-xs font-semibold px-2 py-1.5 text-zinc-600 hover:bg-zinc-100 transition-colors duration-150"
-                    >
-                      Auto
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
             <div className="flex items-center gap-3">
               <button

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Fire, Snowflake, Power, Minus, Plus, X, Crown, WifiHigh, QrCode, CornersOut } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { ZoneIcon } from "../lib/icons";
+import { fmtTemp } from "../lib/utils";
 import { QrAssociateDialog } from "../components/QrAssociateDialog";
 
 export default function KioskDisplay() {
@@ -144,7 +145,8 @@ export default function KioskDisplay() {
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))" }} data-testid="kiosk-zones">
           {zones.map((z) => {
             const active = z.active && on;
-            const reaching = active && Math.abs(z.current_temp - z.setpoint) > 0.3;
+            const hasTemp = z.current_temp !== null && z.current_temp !== undefined;
+            const reaching = active && hasTemp && Math.abs(z.current_temp - z.setpoint) > 0.3;
             return (
               <div key={z.id} data-testid={`kiosk-zone-${z.id}`}
                 className="rounded-2xl p-4 flex flex-col gap-3 border transition-colors"
@@ -171,7 +173,7 @@ export default function KioskDisplay() {
                 <div className="flex items-end justify-between">
                   <div>
                     <p className="font-mono-num text-3xl font-semibold leading-none" style={{ color: active ? "#fff" : "#71717a" }}>
-                      {z.current_temp.toFixed(1)}<span className="text-base text-zinc-500">°</span>
+                      {fmtTemp(z.current_temp)}<span className="text-base text-zinc-500">°</span>
                     </p>
                     <p className="text-[10px] mt-1" style={{ color: reaching ? accent : "#71717a" }}>
                       {reaching ? (cold ? "Refroidit" : "Chauffe") : active ? "Confort atteint" : "En veille"}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Minus, Plus, ArrowsOutLineVertical, ArrowsInLineVertical, PencilSimple, Check, X, Crown, Trash } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
 import { ZoneIcon } from "../lib/icons";
+import { fmtTemp } from "../lib/utils";
 import { Switch } from "./ui/switch";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -13,8 +14,9 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
   const accent = heat ? "#7C3AED" : "#3B82F6";
   const active = zone.active && systemOn;
   const writable = canWrite && active;
-  const diff = zone.current_temp - zone.setpoint;
-  const reaching = active && Math.abs(diff) > 0.3;
+  const hasTemp = zone.current_temp !== null && zone.current_temp !== undefined;
+  const diff = hasTemp ? zone.current_temp - zone.setpoint : 0;
+  const reaching = active && hasTemp && Math.abs(diff) > 0.3;
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(zone.name);
@@ -171,8 +173,8 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
       <div className="flex items-end justify-between mt-6">
         <div>
           <p className="overline text-zinc-500">Température actuelle</p>
-          <div className="font-mono-num text-4xl font-semibold mt-1" style={{ color: active ? "#3F3F46" : "#71717A" }}>
-            {zone.current_temp.toFixed(1)}<span className="text-lg text-zinc-500">°</span>
+          <div className="font-mono-num text-4xl font-semibold mt-1" style={{ color: active ? "#3F3F46" : "#71717A" }} data-testid={`zone-current-temp-${zone.id}`}>
+            {fmtTemp(zone.current_temp)}<span className="text-lg text-zinc-500">°</span>
           </div>
         </div>
         <div className="flex items-center gap-1 text-xs" style={{ color: active ? accent : "#52525B" }}>
@@ -181,7 +183,7 @@ export const ZoneCard = ({ zone, mode, systemOn, onSetpoint, onToggle, onRename,
           ) : (
             <ArrowsInLineVertical weight="bold" size={14} />
           )}
-          {reaching ? (heat ? "Chauffe" : "Refroidit") : active ? "Confort atteint" : "En veille"}
+          {!hasTemp && active ? "Mesure indisponible" : reaching ? (heat ? "Chauffe" : "Refroidit") : active ? "Confort atteint" : "En veille"}
         </div>
       </div>
 

@@ -123,14 +123,6 @@ export default function InstallationDashboard() {
     toast.success(`${updated.name} : vanne ${proportional ? "modulante (0–100 %)" : "tout-ou-rien"}`);
   };
 
-  const setZoneManualTemp = async (id, manual_temp) => {
-    const updated = await api.updateZone(iid, id, { manual_temp });
-    setZones((zs) => zs.map((z) => (z.id === id ? updated : z)));
-    toast.success(manual_temp == null
-      ? "Température de test désactivée (retour auto)"
-      : `Température de test fixée à ${manual_temp}°`);
-  };
-
   const setMaster = async (id) => {    const zs = await api.setMaster(iid, id);
     setZones(zs);
     toast.success(`« ${zs.find((x) => x.id === id)?.name} » est désormais le thermostat maître`);
@@ -293,7 +285,7 @@ export default function InstallationDashboard() {
           {masterZone && (
             <MasterZoneCard zone={masterZone} system={system} canWrite={canWrite}
               onSystem={changeSystem} onMasterPower={masterPower} onSetpoint={setZoneSetpoint}
-              onRename={renameZone} onDiagnostic={runDiagnostic} onToggle={toggleZone} onValves={setZoneValves} onManualTemp={setZoneManualTemp} diagnosing={diagnosing} />
+              onRename={renameZone} onDiagnostic={runDiagnostic} onToggle={toggleZone} onValves={setZoneValves} diagnosing={diagnosing} />
           )}
           <div data-testid="zones-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {otherZones.map((z, i) => (

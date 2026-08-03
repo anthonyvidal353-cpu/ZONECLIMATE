@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Fire, Snowflake, Power, ArrowsLeftRight, Crown, Drop } from "@phosphor-icons/react";
+import { fmtTemp } from "../lib/utils";
 
 function zoneState(z, cold) {
   const opening = typeof z.damper_opening === "number" ? z.damper_opening : (z.damper_open ? 100 : 0);
@@ -142,7 +143,7 @@ export const PlenumView = ({ zones = [], system }) => {
                       {z.name}{z.is_master ? " (Maître)" : ""}
                     </p>
                     <p className="font-display font-semibold text-base" data-testid={`plenum-temp-${z.id}`}>
-                      {Number(z.current_temp).toFixed(1)}°C
+                      {fmtTemp(z.current_temp)}°C
                     </p>
                     <p className="text-[11px] font-semibold uppercase tracking-wider opacity-90">
                       {st.label} · consigne {Number(z.setpoint).toFixed(0)}°

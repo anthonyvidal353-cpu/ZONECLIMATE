@@ -288,7 +288,7 @@ class Zone(BaseModel):
     installation_id: str
     name: str
     icon: str = "house"
-    current_temp: float = 21.0
+    current_temp: Optional[float] = None
     setpoint: float = 21.0
     damper_open: bool = True
     damper_opening: int = 100    # degré d'ouverture 0–100 % (proportionnel ; tout-ou-rien = 0/100)
@@ -298,7 +298,6 @@ class Zone(BaseModel):
     valves: int = 1          # nombre de vannes/registres pilotés par le thermostat (1 à 4)
     proportional: bool = False   # True = vanne modulante (0–100 %), False = tout-ou-rien
     order: int = 0
-    manual_temp: Optional[float] = None   # température d'ambiance FIXE (test/dépannage) — ignore la mesure/simulation si définie
 
 
 class Device(BaseModel):
@@ -342,7 +341,6 @@ class ZoneUpdate(BaseModel):
     name: Optional[str] = None
     valves: Optional[int] = None
     proportional: Optional[bool] = None
-    manual_temp: Optional[float] = None
 
 
 class SystemUpdate(BaseModel):
@@ -462,7 +460,7 @@ async def seed_installation_equipment(installation_id: str, gainable=None, zones
             if master:
                 master_seen = True
             z = Zone(installation_id=installation_id, name=(zs.name.strip() or f"Zone {i + 1}"), icon=zs.icon,
-                     current_temp=21.0, setpoint=21.0, order=i, is_master=master,
+                     current_temp=None, setpoint=21.0, order=i, is_master=master,
                      valves=min(4, max(1, zs.valves or 1)))
             zones.append(z.model_dump())
     else:
@@ -1495,9 +1493,7 @@ async def update_zone(iid: str, zone_id: str, payload: ZoneUpdate, user: dict = 
     raw = payload.model_dump(exclude_unset=True)
     updates = {}
     for k, v in raw.items():
-        if k == "manual_temp":
-            updates[k] = v            # peut être None = désactiver la température de test
-        elif v is not None:
+        if v is not None:
             updates[k] = v
     if "valves" in updates:
         updates["valves"] = min(4, max(1, int(updates["valves"])))
@@ -1926,17 +1922,19 @@ async def simulate_tick(iid: str, user: dict = Depends(get_current_user)):
 
 
 async def _read_real_temps(iid: str, zones: list):
-    """Mode local : lit la température mesurée par chaque thermostat Tuya (DP current_temp)
-    et met à jour z['current_temp']. Dégradation gracieuse (conserve la dernière valeur)."""
+    """Lit la température RÉELLE mesurée par chaque thermostat Tuya (DP current_temp).
+    Aucune simulation : si le thermostat n'est pas en ligne / pas configuré / illisible,
+    la température de la zone est None (affichée « — » côté interface)."""
     devs = await db.devices.find(
         {"installation_id": iid, "category": "thermostat", "tuya_id": {"$ne": None}}, {"_id": 0}).to_list(200)
     by_zone = {d["zone_id"]: d for d in devs if d.get("zone_id")}
     for z in zones:
+        z["current_temp"] = None            # défaut : mesure indisponible
         dev = by_zone.get(z["id"])
         if not dev:
             continue
         ld = await _local_device_for(dev.get("tuya_id"))
-        if not ld:
+        if not ld or ld.get("online") is False:
             continue
         dm = ld.get("dps_map") or {}
         tkey = dm.get("current_temp")
@@ -1973,7 +1971,7 @@ async def _log_regulation_events(iid, mode, prev_running, prev_purging, prev_saf
     if not last or (now - last) >= SNAPSHOT_INTERVAL:
         _last_snapshot[iid] = now
         active = [z for z in zones if z.get("active")]
-        summary = " · ".join(f"{z.get('name')} {z.get('current_temp'):.1f}°/{z.get('setpoint'):.0f}°" for z in active[:10])
+        summary = " · ".join(f"{z.get('name')} {('%.1f' % z['current_temp']) if z.get('current_temp') is not None else '—'}°/{z.get('setpoint'):.0f}°" for z in active[:10])
         state = "en marche" if new_running else ("purge" if purging else "arrêt")
         await log_reg_event(iid, "snapshot",
                             f"État : gainable {state}, demande max {demand:.1f}°" + (f" — {summary}" if summary else ""),
@@ -1996,12 +1994,8 @@ async def _run_regulation(iid: str, real: Optional[bool] = None):
         real = system.control_mode == "local"
     prev_running, prev_purging, prev_safety = system.unit_running, system.purging, system.safety_note
     zones = await db.zones.find({"installation_id": iid}, {"_id": 0}).to_list(200)
-    if real:
-        await _read_real_temps(iid, zones)
-    # Température d'ambiance FIXE (test/dépannage) : prioritaire sur mesure et simulation.
-    for z in zones:
-        if z.get("manual_temp") is not None:
-            z["current_temp"] = float(z["manual_temp"])
+    # Températures RÉELLES uniquement (aucune simulation). Zone sans mesure -> current_temp = None.
+    await _read_real_temps(iid, zones)
     now = datetime.now(timezone.utc)
     heat = system.mode == "chaud"
 
@@ -2009,8 +2003,10 @@ async def _run_regulation(iid: str, real: Optional[bool] = None):
     max_demand = 0.0
     active_setpoints = []
     for z in zones:
-        if not z["active"]:
+        if not z["active"] or z.get("current_temp") is None:
+            # Zone inactive ou température non mesurée : aucune régulation possible
             z["_call"] = False
+            z["_demand"] = 0.0
             continue
         active_setpoints.append(z["setpoint"])
         demand = (z["setpoint"] - z["current_temp"]) if heat else (z["current_temp"] - z["setpoint"])
@@ -2080,7 +2076,7 @@ async def _run_regulation(iid: str, real: Optional[bool] = None):
     else:
         unit_setpoint, fan_level = 0.0, "arrêt"
 
-    # 4) Position des registres (ouverture proportionnelle) + 5) évolution des températures (simulée)
+    # 4) Position des registres (ouverture proportionnelle)
     for z in zones:
         if not z["active"]:
             damper, opening = False, 0
@@ -2097,30 +2093,11 @@ async def _run_regulation(iid: str, real: Optional[bool] = None):
         else:
             damper, opening = False, 0
 
-        if real:
-            # Mode réel : la température vient des thermostats (déjà lue), pas de simulation
-            await db.zones.update_one({"id": z["id"]}, {"$set": {
-                "current_temp": round(z["current_temp"], 1), "damper_open": damper, "damper_opening": opening}})
-            continue
-
-        if z.get("manual_temp") is not None:
-            # Température FIXE (test) : on ne simule pas, on garde la valeur imposée.
-            await db.zones.update_one({"id": z["id"]}, {"$set": {
-                "current_temp": round(float(z["manual_temp"]), 1), "damper_open": damper, "damper_opening": opening}})
-            continue
-
-        cur = z["current_temp"]
-        if unit_running and z["active"] and damper:
-            # Plus la vanne est ouverte, plus la zone se rapproche vite de sa consigne
-            target, step = z["setpoint"], 0.4 * (opening / 100.0 if opening else 1.0)
-        elif purging:
-            target, step = cur, 0.0           # ventilation neutre : pas de variation
-        else:
-            target, step = 19.0, 0.1          # dérive lente vers l'ambiance
-        diff = target - cur
-        new = target if abs(diff) < step else cur + step * (1 if diff > 0 else -1)
-        new = round(new + random.uniform(-0.05, 0.05), 1)
-        await db.zones.update_one({"id": z["id"]}, {"$set": {"current_temp": new, "damper_open": damper, "damper_opening": opening}})
+        # Température = mesure RÉELLE du thermostat (ou None si indisponible). Aucune simulation.
+        ct = z.get("current_temp")
+        await db.zones.update_one({"id": z["id"]}, {"$set": {
+            "current_temp": (round(ct, 1) if ct is not None else None),
+            "damper_open": damper, "damper_opening": opening}})
 
     # 6) Persiste l'état du gainable
     await db.system.update_one({"installation_id": iid}, {"$set": {
@@ -2294,7 +2271,8 @@ async def temperature_history(iid: str, hours: int = 24, user: dict = Depends(ge
             daynight = math.sin(((t.hour + seed) / 24.0) * 2 * math.pi) * 0.9
             noise = random.uniform(-0.4, 0.4)
             if h == 0:
-                val = round(z.get("current_temp", base), 1)
+                cur = z.get("current_temp")
+                val = round(cur, 1) if cur is not None else round(base + daynight + noise, 1)
             else:
                 val = round(base + daynight + noise, 1)
             point[z["id"]] = val
