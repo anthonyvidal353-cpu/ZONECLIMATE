@@ -2,11 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app/backend
 
-# Dépendances système : build (cryptography) + nmcli (gestion Wi-Fi de l'automate)
+# Dépendances système : build (cryptography) + nmcli (Wi-Fi) + rtl_433/rtl-sdr (capture RF 868 MHz)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     network-manager \
     git \
+    rtl-433 \
+    rtl-sdr \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

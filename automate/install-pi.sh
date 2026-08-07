@@ -109,7 +109,10 @@ sudo systemctl enable --now avahi-daemon 2>/dev/null || true
 sudo systemctl restart avahi-daemon 2>/dev/null || true
 # Outils RF 868 MHz (clé RTL-SDR) pour la capture des thermostats E-TOP
 sudo apt-get install -y rtl-433 rtl-sdr >/dev/null 2>&1 || true
-ok "Outils RF installés (rtl_433 / rtl-sdr)"
+# Empêche le pilote TV (DVB-T) de confisquer la clé RTL-SDR
+printf "blacklist dvb_usb_rtl28xxu\nblacklist rtl2832\nblacklist rtl2830\nblacklist rtl2838\n" | sudo tee /etc/modprobe.d/blacklist-rtlsdr.conf >/dev/null 2>&1 || true
+sudo rmmod dvb_usb_rtl28xxu 2>/dev/null || true
+ok "Outils RF installés (rtl_433 / rtl-sdr) + clé RTL-SDR libérée"
 ok "Nom réseau : http://${AUTOMATE_NAME}.local"
 
 # 5) Démarrage de l'application (téléchargement des images pré-construites) --

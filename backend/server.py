@@ -955,6 +955,26 @@ async def rf_capture(payload: dict, user: dict = Depends(require_roles("super_ad
     return await rf_manager.capture(freq=freq, duration=duration, analyze=analyze)
 
 
+@api_router.get("/system/connectivity")
+async def system_connectivity(user: dict = Depends(require_roles("super_admin", "moderator"))):
+    """Teste rapidement l'accès Internet de l'automate (nécessaire pour récupérer les clés Tuya)."""
+    import socket
+
+    def _probe() -> bool:
+        for host, port in (("8.8.8.8", 53), ("1.1.1.1", 53)):
+            try:
+                s = socket.create_connection((host, port), timeout=2.5)
+                s.close()
+                return True
+            except Exception:  # noqa: BLE001
+                continue
+        return False
+
+    online = await asyncio.to_thread(_probe)
+    return {"internet": online}
+
+
+
 
 @api_router.put("/admin/tuya/local/devices/{tuya_id}/dps-map")
 async def local_set_dps_map(tuya_id: str, payload: dict, user: dict = Depends(require_roles("super_admin"))):

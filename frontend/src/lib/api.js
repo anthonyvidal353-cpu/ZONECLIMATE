@@ -61,6 +61,7 @@ export const api = {
   // Capture RF 868 MHz (RTL-SDR)
   rfStatus: () => http.get("/admin/rf/status").then((r) => r.data),
   rfCapture: (data) => http.post("/admin/rf/capture", data).then((r) => r.data),
+  connectivity: () => http.get("/system/connectivity").then((r) => r.data),
   getUpdateInfo: () => http.get("/system/update-info").then((r) => r.data),
   applyUpdate: () => http.post("/system/update").then((r) => r.data),
   // Catalogue QR (admin) + association par QR
